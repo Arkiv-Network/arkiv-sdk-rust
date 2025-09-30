@@ -1,6 +1,6 @@
 [package]
 name = "arkiv-sdk"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 description = "A Rust SDK for interacting with Arkiv."
 license = "GPL-3.0-or-later"
