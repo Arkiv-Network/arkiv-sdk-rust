@@ -1,7 +1,7 @@
 # Arkiv SDK for Rust
 
 This is part of the [Arkiv](https://github.com/Arkiv-Network) project, which is designed as a Layer2 Network deployed on Ethereum, acting as a gateway to various Layer 3 Database Chains (DB-Chains).
-For an overview of Arkiv, **check out our [Litepaper](https://golem-base.io/wp-content/uploads/2025/03/GolemBase-Litepaper.pdf)**.
+For an overview of Arkiv, **check out our [Litepaper](https://arkiv.network/pdf/ARKIV_Litepaper_blue.pdf)**.
 
 This SDK allows you to use [Arkiv](https://github.com/Golem-Base) from Rust, it is available on [crates.io](https://crates.io/crates/arkiv-sdk), alng with its [generated documentation](https://docs.rs/arkiv-sdk). We provide an [example application](https://github.com/Arkiv-Network/arkiv-sdk-rust/tree/main/demo) to showcase how you can use this SDK.
 
