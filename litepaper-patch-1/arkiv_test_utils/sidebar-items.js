@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["ARKIV_URL","ARKIV_WS_URL","TEST_KEYSTORE_PASSPHRASE","TEST_TTL"],"fn":["get_client"]};

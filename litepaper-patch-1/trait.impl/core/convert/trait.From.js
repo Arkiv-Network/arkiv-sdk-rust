@@ -1,9 +1,0 @@
-(function() {
-    var implementors = Object.fromEntries([["arkiv_sdk",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.88.0/core/convert/trait.From.html\" title=\"trait core::convert::From\">From</a>&lt;&amp;<a class=\"struct\" href=\"arkiv_sdk/eth/ArkivABI/struct.GolemBaseStorageEntityBTLExtended.html\" title=\"struct arkiv_sdk::eth::ArkivABI::GolemBaseStorageEntityBTLExtended\">GolemBaseStorageEntityBTLExtended</a>&gt; for LogData"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.88.0/core/convert/trait.From.html\" title=\"trait core::convert::From\">From</a>&lt;&amp;<a class=\"struct\" href=\"arkiv_sdk/eth/ArkivABI/struct.GolemBaseStorageEntityCreated.html\" title=\"struct arkiv_sdk::eth::ArkivABI::GolemBaseStorageEntityCreated\">GolemBaseStorageEntityCreated</a>&gt; for LogData"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.88.0/core/convert/trait.From.html\" title=\"trait core::convert::From\">From</a>&lt;&amp;<a class=\"struct\" href=\"arkiv_sdk/eth/ArkivABI/struct.GolemBaseStorageEntityDeleted.html\" title=\"struct arkiv_sdk::eth::ArkivABI::GolemBaseStorageEntityDeleted\">GolemBaseStorageEntityDeleted</a>&gt; for LogData"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.88.0/core/convert/trait.From.html\" title=\"trait core::convert::From\">From</a>&lt;&amp;<a class=\"struct\" href=\"arkiv_sdk/eth/ArkivABI/struct.GolemBaseStorageEntityUpdated.html\" title=\"struct arkiv_sdk::eth::ArkivABI::GolemBaseStorageEntityUpdated\">GolemBaseStorageEntityUpdated</a>&gt; for LogData"]]]]);
-    if (window.register_implementors) {
-        window.register_implementors(implementors);
-    } else {
-        window.pending_implementors = implementors;
-    }
-})()
-//{"start":57,"fragment_lengths":[1503]}
