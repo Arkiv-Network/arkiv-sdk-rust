@@ -2,13 +2,13 @@
 
 /// Re-export commonly used types from `alloy`.
 pub use alloy::{
-    primitives::{Address, keccak256},
-    signers::{Signature, local::PrivateKeySigner},
+    primitives::{keccak256, Address},
+    signers::{local::PrivateKeySigner, Signature},
     transports::http::reqwest::Url,
 };
 
-pub use client::{ArkivClient, ArkivRoClient};
-pub use entity::{Annotation, Hash, NumericAnnotation, StringAnnotation};
+pub use client::{Client, RoClient};
+pub use entity::{types::attribute::Attribute, EntityKey};
 
 /// Module for Ethereum transaction-related functionality.
 /// Provides helpers for constructing, signing, and sending Ethereum transactions.

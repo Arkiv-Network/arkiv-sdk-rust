@@ -1,8 +1,18 @@
-use crate::ArkivClient;
-use crate::entity::{
-    ArkivTransaction, Create, DeleteResult, EntityResult, Extend, ExtendResult, Update,
+// TODO: In general it's bad practice to expect heap allocated types like Vec when
+// you really just want an iterator or slice. We can be much more general to avoid
+// the overhead in situations when the expected type from an end user is really just
+// some B256 hash or other arbitrary string or numeric data.
+use crate::{
+    Client,
+    entity::{
+        EntityKey, EntityResult,
+        create::Create,
+        delete::{Delete, DeleteResult},
+        extend::{Extend, ExtendResult},
+        tx::{Transaction, TransactionResult},
+        update::Update,
+    },
 };
-use crate::entity::{Hash, TransactionResult};
 
 use alloy::network::TransactionBuilder;
 use alloy::primitives::{Address, TxKind, address};
@@ -12,22 +22,22 @@ use displaydoc::Display;
 use thiserror::Error;
 
 alloy::sol! {
-    contract ArkivABI {
-        event GolemBaseStorageEntityCreated(
+    contract ArkivAbi {
+        event EntityCreated(
             uint256 indexed entityKey,
             uint256 expirationBlock
         );
 
-        event GolemBaseStorageEntityUpdated(
+        event EntityUpdated(
             uint256 indexed entityKey,
             uint256 expirationBlock
         );
 
-        event GolemBaseStorageEntityDeleted(
+        event EntityDeleted(
             uint256 indexed entityKey
         );
 
-        event GolemBaseStorageEntityBTLExtended(
+        event EntityExtended(
             uint256 indexed entityKey,
             uint256 oldExpirationBlock,
             uint256 newExpirationBlock
@@ -51,8 +61,8 @@ pub enum Error {
 /// All entity-related transactions are sent to this address.
 pub const STORAGE_ADDRESS: Address = address!("0x0000000000000000000000000000000060138453");
 
-impl ArkivClient {
-    pub async fn send_transaction(&self, tx: ArkivTransaction) -> Result<TransactionResult, Error> {
+impl Client {
+    pub async fn send_transaction(&self, tx: Transaction) -> Result<TransactionResult, Error> {
         let receipt = self.create_raw_transaction(tx).await?;
         receipt.try_into()
     }
@@ -61,7 +71,7 @@ impl ArkivClient {
     /// Sends a transaction to the storage contract and parses the resulting logs.
     pub async fn create_entities(&self, creates: Vec<Create>) -> Result<Vec<EntityResult>, Error> {
         let result = self
-            .send_transaction(ArkivTransaction::builder().creates(creates).build())
+            .send_transaction(Transaction::builder().creates(creates).build())
             .await;
 
         result.and_then(|res| match res {
@@ -81,7 +91,7 @@ impl ArkivClient {
     /// Sends a transaction to the storage contract and parses the resulting logs.
     pub async fn update_entities(&self, updates: Vec<Update>) -> Result<Vec<EntityResult>, Error> {
         let result = self
-            .send_transaction(ArkivTransaction::builder().updates(updates).build())
+            .send_transaction(Transaction::builder().updates(updates).build())
             .await;
 
         result.and_then(|res| match res {
@@ -99,9 +109,17 @@ impl ArkivClient {
 
     /// Deletes one or more entities in Arkiv and returns their results.
     /// Sends a transaction to the storage contract and parses the resulting logs.
-    pub async fn delete_entities(&self, deletes: Vec<Hash>) -> Result<Vec<DeleteResult>, Error> {
+    pub async fn delete_entities(
+        &self,
+        deletes: Vec<EntityKey>,
+    ) -> Result<Vec<DeleteResult>, Error> {
         let result = self
-            .send_transaction(ArkivTransaction::builder().deletes(deletes).build())
+            .send_transaction(
+                Transaction::builder()
+                    // TODO: See mod comment
+                    .deletes(deletes.into_iter().map(From::from).collect::<Vec<Delete>>())
+                    .build(),
+            )
             .await;
 
         result.and_then(|res| match res {
@@ -124,7 +142,7 @@ impl ArkivClient {
         extensions: Vec<Extend>,
     ) -> Result<Vec<ExtendResult>, Error> {
         let result = self
-            .send_transaction(ArkivTransaction::builder().extensions(extensions).build())
+            .send_transaction(Transaction::builder().extensions(extensions).build())
             .await;
 
         result.and_then(|res| match res {
@@ -167,7 +185,7 @@ impl ArkivClient {
     /// Encodes the transaction payload and sends it to the contract address.
     pub async fn create_raw_transaction(
         &self,
-        payload: ArkivTransaction,
+        payload: Transaction,
     ) -> Result<TransactionReceipt, Error> {
         tracing::debug!("payload: {payload:?}");
         let encoded = payload.encoded();

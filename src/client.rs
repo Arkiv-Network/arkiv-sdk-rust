@@ -46,7 +46,7 @@ impl NonceManager {
 /// however, an instance of [`ArkivClient`] can be dereferenced to [`ArkivRoClient`] like so:
 ///
 /// ```rs
-/// use arkiv_sdk::{ArkivClient, ArkivRoClient, PrivateKeySigner, Url};
+/// use arkiv_sdk::{Client, RoClient, PrivateKeySigner, Url};
 ///
 /// let keypath = dirs::config_dir()
 ///     .ok_or("Failed to get config directory")?
@@ -55,22 +55,22 @@ impl NonceManager {
 /// let signer = PrivateKeySigner::decrypt_keystore(keypath, "password")?;
 /// let url = Url::parse("http://localhost:8545")?;
 ///
-/// let client = ArkivClient::builder()
+/// let client = Client::builder()
 ///     .wallet(signer)
 ///     .rpc_url(url)
 ///     .build();
 ///
-/// let ro_client: &ArkivRoClient = *client;
+/// let ro_client: &RoClient = *client;
 /// ```
 #[derive(Clone)]
-pub struct ArkivRoClient {
+pub struct RoClient {
     /// The underlying provider for making RPC calls.
     pub(crate) provider: DynProvider,
 }
 
 #[bon]
-impl ArkivRoClient {
-    /// Creates a new builder for `ArkivClient` with the given wallet and RPC URL.
+impl RoClient {
+    /// Creates a new builder for `arkiv_sdk::RoClient` with the given wallet and RPC URL.
     /// Initializes the provider and sets up default configuration.
     #[builder]
     pub fn builder(rpc_url: Url, provider: Option<DynProvider>) -> Self {
@@ -93,7 +93,7 @@ impl ArkivRoClient {
 /// however, an instance of [`ArkivClient`] can be dereferenced to [`ArkivRoClient`] like so:
 ///
 /// ```rs
-/// use arkiv_sdk::{ArkivClient, ArkivRoClient, PrivateKeySigner, Url};
+/// use arkiv_sdk::{Client, RoClient, PrivateKeySigner, Url};
 ///
 /// let keypath = dirs::config_dir()
 ///     .ok_or("Failed to get config directory")?
@@ -102,25 +102,25 @@ impl ArkivRoClient {
 /// let signer = PrivateKeySigner::decrypt_keystore(keypath, "password")?;
 /// let url = Url::parse("http://localhost:8545")?;
 ///
-/// let client = ArkivClient::builder()
+/// let client = Client::builder()
 ///     .wallet(signer)
 ///     .rpc_url(url)
 ///     .build();
 ///
-/// let ro_client: &ArkivRoClient = *client;
+/// let ro_client: &RoClient = *client;
 /// ```
 #[derive(Clone)]
-pub struct ArkivClient {
-    /// The underlying ArkivRoClient
-    pub(crate) ro_client: ArkivRoClient,
+pub struct Client {
+    /// The underlying [`arkive_sdk::RoClient`].
+    pub(crate) ro_client: RoClient,
     /// The Ethereum address of the client owner.
     pub(crate) wallet: PrivateKeySigner,
     /// Nonce manager for tracking transaction nonces.
     pub(crate) nonce_manager: Arc<Mutex<NonceManager>>,
 }
 
-impl Deref for ArkivClient {
-    type Target = ArkivRoClient;
+impl Deref for Client {
+    type Target = RoClient;
 
     fn deref(&self) -> &Self::Target {
         &self.ro_client
@@ -128,8 +128,8 @@ impl Deref for ArkivClient {
 }
 
 #[bon]
-impl ArkivClient {
-    /// Creates a new builder for `ArkivClient` with the given wallet and RPC URL.
+impl Client {
+    /// Creates a new builder for [`arkive_sdk::Client`] with the given wallet and RPC URL.
     /// Initializes the provider and sets up default configuration.
     #[builder]
     pub fn builder(wallet: PrivateKeySigner, rpc_url: Url) -> Self {
@@ -138,7 +138,7 @@ impl ArkivClient {
             .connect_http(rpc_url.clone())
             .erased();
 
-        let ro_client = ArkivRoClient::builder()
+        let ro_client = RoClient::builder()
             .rpc_url(rpc_url)
             .provider(provider)
             .build();

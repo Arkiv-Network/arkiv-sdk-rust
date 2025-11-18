@@ -1,5 +1,5 @@
 use anyhow::Result;
-use arkiv_sdk::{ArkivClient, PrivateKeySigner};
+use arkiv_sdk::{Client, PrivateKeySigner};
 use dirs::config_dir;
 use url::Url;
 
@@ -12,13 +12,13 @@ pub const TEST_TTL: u64 = 30;
 
 pub const TEST_KEYSTORE_PASSPHRASE: &str = "passphrase";
 
-pub fn get_client() -> Result<ArkivClient> {
+pub fn get_client() -> Result<Client> {
     let keypath = config_dir()
         .ok_or_else(|| anyhow::anyhow!("Failed to get config directory"))?
-        .join("golembase")
+        .join("arkiv")
         .join("wallet.json");
     let signer = PrivateKeySigner::decrypt_keystore(keypath, TEST_KEYSTORE_PASSPHRASE)?;
     let url = Url::parse(ARKIV_URL)?;
-    let client = ArkivClient::builder().wallet(signer).rpc_url(url).build();
+    let client = Client::builder().wallet(signer).rpc_url(url).build();
     Ok(client)
 }

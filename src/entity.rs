@@ -1,482 +1,189 @@
 use alloy::primitives::B256;
-use alloy::rpc::types::TransactionReceipt;
-use alloy::sol_types::SolEventInterface;
-use alloy_rlp::{Encodable, RlpDecodable, RlpEncodable};
-use bon::bon;
-use bytes::Bytes;
+use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
-use std::convert::From;
+use types::attribute::{NumericAttribute, StringAttribute};
 
-use crate::eth::{self, ArkivABI};
+pub mod chown;
+pub mod create;
+pub mod delete;
+pub mod error;
+pub mod extend;
+pub mod tx;
+pub mod types;
+pub mod update;
 
-/// A generic key-value pair structure for entity annotations.
-/// Used for both string and numeric metadata attached to entities.
-#[derive(Debug, Clone, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
-pub struct Annotation<T> {
-    /// The key of the annotation.
-    pub key: Key,
-    /// The value of the annotation.
-    pub value: T,
-}
-
-impl<T> Annotation<T> {
-    /// Creates a new key-value pair annotation.
-    /// Accepts any types convertible to `Key` and the annotation value.
-    pub fn new<K, V>(key: K, value: V) -> Self
-    where
-        K: Into<Key>,
-        V: Into<T>,
-    {
-        Annotation {
-            key: key.into(),
-            value: value.into(),
-        }
-    }
-}
-
-/// Type alias for string annotations (key-value pairs with `String` values).
-pub type StringAnnotation = Annotation<String>;
-
-/// Type alias for numeric annotations (key-value pairs with `u64` values).
-pub type NumericAnnotation = Annotation<u64>;
-
-/// A type alias for the hash used to identify entities in Arkiv.
-pub type Hash = B256;
-
-/// Type alias for the key used in annotations.
-pub type Key = String;
-
-/// Type representing a create transaction in Arkiv.
-/// Used to define new entities, including their data, BTL, and annotations.
-///
-/// > Note: Each block represents ~2 seconds, eg. setting the BTL (blocks-to-live) to
-/// > `15u64` is equal to 30 seconds of life for the entity.
-#[derive(Debug, Clone, Default, RlpEncodable, RlpDecodable, Deserialize)]
-#[rlp(trailing)]
-pub struct Create {
-    /// The block-to-live (BTL) for the entity.
-    pub btl: u64,
-    /// The data associated with the entity.
-    pub data: Bytes,
-    /// String annotations for the entity.
-    pub string_annotations: Vec<StringAnnotation>,
-    /// Numeric annotations for the entity.
-    pub numeric_annotations: Vec<NumericAnnotation>,
-}
-
-/// Type representing an update transaction in Arkiv.
-/// Used to update existing entities, including their data, BTL, and annotations.
-///
-/// > Note: Each block represents ~2 seconds, eg. setting the BTL (blocks-to-live) to
-/// > `15u64` is equal to 30 seconds of life for the entity.
-#[derive(Debug, Clone, Default, RlpEncodable, RlpDecodable, Deserialize)]
-#[rlp(trailing)]
-pub struct Update {
-    /// The key of the entity to update.
-    pub entity_key: Hash,
-    /// The updated block-to-live (BTL) for the entity.
-    pub btl: u64,
-    /// The updated data for the entity.
-    pub data: Bytes,
-    /// Updated string annotations for the entity.
-    pub string_annotations: Vec<StringAnnotation>,
-    /// Updated numeric annotations for the entity.
-    pub numeric_annotations: Vec<NumericAnnotation>,
-}
-
-/// Type alias for a delete operation (just the entity key).
-pub type ArkivDelete = Hash;
-
-/// Type representing an extend transaction in Arkiv.
-/// Used to extend the BTL of an entity by a number of blocks.
-///
-/// > Note: Each block represents ~2 seconds, eg. setting the BTL (blocks-to-live) to
-/// > `15u64` is equal to 30 seconds of life for the entity.
-#[derive(Debug, Clone, Default, RlpEncodable, RlpDecodable, Deserialize)]
-pub struct Extend {
-    /// The key of the entity to extend.
-    pub entity_key: Hash,
-    /// The number of blocks to extend the BTL by.
-    pub number_of_blocks: u64,
-}
-
-/// Type representing a transaction in Arkiv, including creates, updates, deletes, and extensions.
-/// Used as the main payload for submitting entity changes to the chain.
-#[derive(Debug, Clone)]
-pub struct ArkivTransaction {
-    pub encodable: EncodableArkivTransaction,
-    pub gas_limit: Option<u64>,
-    pub max_priority_fee_per_gas: Option<u128>,
-    pub max_fee_per_gas: Option<u128>,
-}
-
-// A transaction that can be encoded in RLP
-#[derive(Debug, Clone, Default, RlpEncodable, RlpDecodable)]
-pub struct EncodableArkivTransaction {
-    /// A list of entities to create.
-    pub creates: Vec<Create>,
-    /// A list of entities to update.
-    pub updates: Vec<Update>,
-    /// A list of entity keys to delete.
-    pub deletes: Vec<ArkivDelete>,
-    /// A list of entities to extend.
-    pub extensions: Vec<Extend>,
-}
+use crate::entity::types::btl::BlocksToLive;
 
 /// Represents an entity with data, BTL, and annotations.
 /// Used for reading entity state from the chain.
-///
-/// > Note: Each block represents ~2 seconds, eg. setting the BTL (blocks-to-live) to
-/// > `15u64` is equal to 30 seconds of life for the entity.
 #[derive(Debug, Clone, Default, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
 pub struct Entity {
     /// The data associated with the entity.
     pub data: String,
     /// The block-to-live (BTL) for the entity.
-    pub btl: u64,
+    pub btl: BlocksToLive,
     /// String annotations for the entity.
-    pub string_annotations: Vec<StringAnnotation>,
+    pub string_attributes: Vec<StringAttribute>,
     /// Numeric annotations for the entity.
-    pub numeric_annotations: Vec<NumericAnnotation>,
+    pub numeric_attributes: Vec<NumericAttribute>,
 }
 
 /// Represents the result of creating or updating an entity.
 /// Contains the entity key and its expiration block.
-#[derive(Debug, Clone, Default, RlpEncodable, RlpDecodable, Serialize)]
+#[derive(Debug, Clone, Default, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
 pub struct EntityResult {
     /// The key of the entity.
-    pub entity_key: Hash,
+    pub entity_key: EntityKey,
     /// The block number at which the entity expires.
     pub expiration_block: u64,
 }
 
-/// Represents the result of extending an entity's BTL.
-/// Contains the entity key, old expiration block, and new expiration block.
-#[derive(Debug)]
-pub struct ExtendResult {
-    /// The key of the entity.
-    pub entity_key: Hash,
-    /// The old expiration block of the entity.
-    pub old_expiration_block: u64,
-    /// The new expiration block of the entity.
-    pub new_expiration_block: u64,
-}
-
-/// Represents the result of deleting an entity.
-/// Contains the key of the deleted entity.
-#[derive(Debug)]
-pub struct DeleteResult {
-    /// The key of the entity that was deleted.
-    pub entity_key: Hash,
-}
-
-#[derive(Debug, Default)]
-pub struct TransactionResult {
-    pub creates: Vec<EntityResult>,
-    pub updates: Vec<EntityResult>,
-    pub deletes: Vec<DeleteResult>,
-    pub extensions: Vec<ExtendResult>,
-}
-
-impl TryFrom<TransactionReceipt> for TransactionResult {
-    type Error = eth::Error;
-
-    fn try_from(receipt: TransactionReceipt) -> Result<Self, Self::Error> {
-        if !receipt.status() {
-            return Err(Self::Error::TransactionReceiptError(format!(
-                "Transaction {} failed: {:?}",
-                receipt.transaction_hash, receipt
-            )));
-        }
-
-        let mut txres = TransactionResult::default();
-        receipt.logs().iter().cloned().try_for_each(|log| {
-            let log: alloy::primitives::Log = log.into();
-            let parsed = ArkivABI::ArkivABIEvents::decode_log(&log).map_err(|e| {
-                Self::Error::UnexpectedLogDataError(format!("Error decoding event log: {e}"))
-            })?;
-            match parsed.data {
-                ArkivABI::ArkivABIEvents::GolemBaseStorageEntityCreated(data) => {
-                    txres.creates.push(EntityResult {
-                        entity_key: data.entityKey.into(),
-                        expiration_block: data.expirationBlock.try_into().unwrap_or_default(),
-                    });
-                    Ok(())
-                }
-                ArkivABI::ArkivABIEvents::GolemBaseStorageEntityUpdated(data) => {
-                    txres.updates.push(EntityResult {
-                        entity_key: data.entityKey.into(),
-                        expiration_block: data.expirationBlock.try_into().unwrap_or_default(),
-                    });
-                    Ok(())
-                }
-                ArkivABI::ArkivABIEvents::GolemBaseStorageEntityDeleted(data) => {
-                    txres.deletes.push(DeleteResult {
-                        entity_key: data.entityKey.into(),
-                    });
-                    Ok(())
-                }
-                ArkivABI::ArkivABIEvents::GolemBaseStorageEntityBTLExtended(data) => {
-                    txres.extensions.push(ExtendResult {
-                        entity_key: data.entityKey.into(),
-                        old_expiration_block: data
-                            .oldExpirationBlock
-                            .try_into()
-                            .unwrap_or_default(),
-                        new_expiration_block: data
-                            .newExpirationBlock
-                            .try_into()
-                            .unwrap_or_default(),
-                    });
-                    Ok(())
-                }
-            }
-        })?;
-
-        Ok(txres)
-    }
-}
-
-impl Create {
-    /// Creates a new `Create` operation with empty annotations.
-    /// Accepts a payload as bytes and a BTL value.
-    pub fn new(payload: Vec<u8>, btl: u64) -> Self {
-        Self {
-            btl,
-            data: Bytes::from(payload),
-            string_annotations: Vec::new(),
-            numeric_annotations: Vec::new(),
-        }
-    }
-
-    /// Creates a new `Create` request from any type that can be converted to `String`.
-    pub fn from_string<T: Into<String>>(payload: T, btl: u64) -> Self {
-        Self {
-            btl,
-            data: Bytes::from(payload.into().into_bytes()),
-            string_annotations: Vec::new(),
-            numeric_annotations: Vec::new(),
-        }
-    }
-
-    /// Adds a string annotation to the entity.
-    /// Returns the modified `Create` for chaining.
-    pub fn annotate_string(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.string_annotations.push(Annotation {
-            key: key.into(),
-            value: value.into(),
-        });
-        self
-    }
-
-    /// Adds a numeric annotation to the entity.
-    /// Returns the modified `Create` for chaining.
-    pub fn annotate_number(mut self, key: impl Into<String>, value: u64) -> Self {
-        self.numeric_annotations.push(Annotation {
-            key: key.into(),
-            value,
-        });
-        self
-    }
-}
-
-impl Update {
-    /// Creates a new `Update` operation with empty annotations.
-    /// Accepts an entity key, payload as bytes, and a BTL value.
-    pub fn new(entity_key: B256, payload: Vec<u8>, btl: u64) -> Self {
-        Self {
-            entity_key,
-            btl,
-            data: Bytes::from(payload),
-            string_annotations: Vec::new(),
-            numeric_annotations: Vec::new(),
-        }
-    }
-
-    /// Creates a new `Update` request from any type that can be converted to `String`.
-    pub fn from_string<T: Into<String>>(entity_key: B256, payload: T, btl: u64) -> Self {
-        Self {
-            entity_key,
-            btl,
-            data: Bytes::from(payload.into().into_bytes()),
-            string_annotations: Vec::new(),
-            numeric_annotations: Vec::new(),
-        }
-    }
-
-    /// Adds a string annotation to the entity.
-    /// Returns the modified `Update` for chaining.
-    pub fn annotate_string(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.string_annotations.push(Annotation {
-            key: key.into(),
-            value: value.into(),
-        });
-        self
-    }
-
-    /// Adds a numeric annotation to the entity.
-    /// Returns the modified `Update` for chaining.
-    pub fn annotate_number(mut self, key: impl Into<String>, value: u64) -> Self {
-        self.numeric_annotations.push(Annotation {
-            key: key.into(),
-            value,
-        });
-        self
-    }
-}
-
-impl Extend {
-    /// Creates a new `Update` operation with empty annotations.
-    /// Accepts an entity key, payload as bytes, and a BTL value.
-    pub fn new(entity_key: B256, number_of_blocks: u64) -> Self {
-        Self {
-            entity_key,
-            number_of_blocks,
-        }
-    }
-}
-
-#[bon]
-impl ArkivTransaction {
-    #[builder]
-    pub fn builder(
-        creates: Option<Vec<Create>>,
-        updates: Option<Vec<Update>>,
-        deletes: Option<Vec<ArkivDelete>>,
-        extensions: Option<Vec<Extend>>,
-        gas_limit: Option<u64>,
-        max_priority_fee_per_gas: Option<u128>,
-        max_fee_per_gas: Option<u128>,
-    ) -> Self {
-        Self {
-            encodable: EncodableArkivTransaction {
-                creates: creates.unwrap_or_default(),
-                updates: updates.unwrap_or_default(),
-                deletes: deletes.unwrap_or_default(),
-                extensions: extensions.unwrap_or_default(),
-            },
-            gas_limit,
-            max_priority_fee_per_gas,
-            max_fee_per_gas,
-        }
-    }
-}
-
-impl ArkivTransaction {
-    /// Returns the RLP-encoded bytes of the transaction.
-    /// Useful for submitting the transaction to the chain.
-    pub fn encoded(&self) -> Vec<u8> {
-        let mut encoded = Vec::new();
-        self.encodable.encode(&mut encoded);
-        encoded
-    }
-}
+/// A type alias for the hash used to identify entities in GolemBase.
+pub type EntityKey = B256;
 
 // Tests check serialization compatibility with go implementation.
 #[cfg(test)]
-mod tests {
-    use super::*;
+mod serialization_tests {
     use alloy::primitives::B256;
+    use expect_test::expect;
     use hex;
+
+    use crate::entity::{
+        create::Create,
+        extend::Extend,
+        tx::Transaction,
+        types::attribute::{NumericAttribute, StringAttribute, WithAttribute},
+        update::Update,
+    };
+
+    pub fn expect_hex(hex: &str, expect: expect_test::Expect) {
+        expect.assert_eq(hex);
+    }
 
     #[test]
     fn test_empty_transaction() {
-        let tx = ArkivTransaction::builder().build();
-        assert_eq!(hex::encode(tx.encoded()), "c4c0c0c0c0");
+        let tx = Transaction::builder().build();
+        expect_hex(&hex::encode(tx.encoded()), expect!["c4c0c0c0c0"]);
     }
 
     #[test]
     fn test_create_without_annotations() {
-        let create = Create::new(b"test payload".to_vec(), 1000);
+        let create = Create::builder()
+            .btl(1000)
+            .content_type("application/json")
+            .payload(serde_json::json!({ "test": "payload" }).to_string())
+            .build()
+            .unwrap();
 
-        let tx = ArkivTransaction::builder().creates(vec![create]).build();
+        let tx = Transaction::builder().creates(vec![create]).build();
 
-        assert_eq!(
-            hex::encode(tx.encoded()),
-            "d7d3d28203e88c74657374207061796c6f6164c0c0c0c0c0"
+        expect_hex(
+            &hex::encode(tx.encoded()),
+            expect![
+                "efebeac38203e8906170706c69636174696f6e2f6a736f6e927b2274657374223a227061796c6f6164227dc0c0c0c0c0"
+            ],
         );
     }
 
     #[test]
     fn test_create_with_annotations() {
-        let create = Create::new(b"test payload".to_vec(), 1000)
-            .annotate_string("foo", "bar")
-            .annotate_number("baz", 42);
+        let create = Create::builder()
+            .btl(1000)
+            .content_type("application/json")
+            .payload(serde_json::json!({ "test": "payload" }).to_string())
+            .with_attribute(StringAttribute::from(("foo", "bar")))
+            .with_attribute(NumericAttribute::from(("baz", 42u64)))
+            .build()
+            .unwrap();
 
-        let tx = ArkivTransaction::builder().creates(vec![create]).build();
+        let tx = Transaction::builder().creates(vec![create]).build();
 
-        assert_eq!(
-            hex::encode(tx.encoded()),
-            "e6e2e18203e88c74657374207061796c6f6164c9c883666f6f83626172c6c58362617a2ac0c0c0"
+        expect_hex(
+            &hex::encode(tx.encoded()),
+            expect![
+                "f840f83bf839c38203e8906170706c69636174696f6e2f6a736f6e927b2274657374223a227061796c6f6164227dc9c883666f6f83626172c6c58362617a2ac0c0c0"
+            ],
         );
     }
 
     #[test]
     fn test_update_with_annotations() {
-        let update = Update::new(
-            B256::from_slice(&[1; 32]),
-            b"updated payload".to_vec(),
-            2000,
-        )
-        .annotate_string("status", "active")
-        .annotate_number("version", 2);
+        let update = Update::builder()
+            .entity_key(&[1; 32])
+            .content_type("plain/text")
+            .payload(b"updated payload".to_vec())
+            .btl(2000)
+            .with_attribute(StringAttribute::new("status".into(), "active".into()))
+            .with_attribute(NumericAttribute::new("version".into(), 2))
+            .build()
+            .unwrap();
 
-        let tx = ArkivTransaction::builder().updates(vec![update]).build();
+        let tx = Transaction::builder().updates(vec![update]).build();
 
-        assert_eq!(
-            hex::encode(tx.encoded()),
-            "f856c0f851f84fa001010101010101010101010101010101010101010101010101010101010101018207d08f75706461746564207061796c6f6164cfce8673746174757386616374697665cac98776657273696f6e02c0c0"
+        expect_hex(
+            &hex::encode(tx.encoded()),
+            expect![
+                "f862c0f85df85ba00101010101010101010101010101010101010101010101010101010101010101c38207d08a706c61696e2f746578748f75706461746564207061796c6f6164cfce8673746174757386616374697665cac98776657273696f6e02c0c0"
+            ],
         );
     }
 
     #[test]
     fn test_delete_operation() {
-        let tx = ArkivTransaction::builder()
-            .deletes(vec![B256::from_slice(&[2; 32])])
+        let tx = Transaction::builder()
+            .deletes(vec![B256::from_slice(&[2; 32]).into()])
             .build();
 
-        assert_eq!(
-            hex::encode(tx.encoded()),
-            "e5c0c0e1a00202020202020202020202020202020202020202020202020202020202020202c0"
+        expect_hex(
+            &hex::encode(tx.encoded()),
+            expect![
+                "e6c0c0e2e1a00202020202020202020202020202020202020202020202020202020202020202c0"
+            ],
         );
     }
 
     #[test]
     fn test_extend_btl() {
-        let tx = ArkivTransaction::builder()
-            .extensions(vec![Extend {
-                entity_key: B256::from_slice(&[3; 32]),
-                number_of_blocks: 500,
-            }])
+        let tx = Transaction::builder()
+            .extensions(vec![Extend::new(&[3; 32], 500)])
             .build();
 
-        assert_eq!(
-            hex::encode(tx.encoded()),
-            "e9c0c0c0e5e4a003030303030303030303030303030303030303030303030303030303030303038201f4"
+        expect_hex(
+            &hex::encode(tx.encoded()),
+            expect![
+                "e9c0c0c0e5e4a003030303030303030303030303030303030303030303030303030303030303038201f4"
+            ],
         );
     }
 
     #[test]
     fn test_mixed_operations() {
-        let create = Create::new(b"test payload".to_vec(), 1000).annotate_string("type", "test");
-        let update = Update::new(
-            B256::from_slice(&[1; 32]),
-            b"updated payload".to_vec(),
-            2000,
-        );
-        let tx = ArkivTransaction::builder()
+        let create = Create::builder()
+            .content_type("plain/text")
+            .payload("test payload")
+            .btl(1000)
+            .with_attribute(StringAttribute::new("type".to_string(), "test".to_string()))
+            .build()
+            .unwrap();
+        let update = Update::builder()
+            .entity_key(&[1; 32])
+            .content_type("plain/text")
+            .payload(b"updated payload".to_vec())
+            .btl(2000)
+            .build()
+            .unwrap();
+        let tx = Transaction::builder()
             .creates(vec![create])
             .updates(vec![update])
-            .deletes(vec![B256::from_slice(&[2; 32])])
-            .extensions(vec![Extend {
-                entity_key: B256::from_slice(&[3; 32]),
-                number_of_blocks: 500,
-            }])
+            .deletes(vec![B256::from_slice(&[2; 32]).into()])
+            .extensions(vec![Extend::new(&[3; 32], 500)])
             .build();
 
-        assert_eq!(
-            hex::encode(tx.encoded()),
-            "f89fdedd8203e88c74657374207061796c6f6164cbca84747970658474657374c0f7f6a001010101010101010101010101010101010101010101010101010101010101018207d08f75706461746564207061796c6f6164c0c0e1a00202020202020202020202020202020202020202020202020202020202020202e5e4a003030303030303030303030303030303030303030303030303030303030303038201f4"
+        expect_hex(
+            &hex::encode(tx.encoded()),
+            expect![
+                "f8baeae9c38203e88a706c61696e2f746578748c74657374207061796c6f6164cbca84747970658474657374c0f844f842a00101010101010101010101010101010101010101010101010101010101010101c38207d08a706c61696e2f746578748f75706461746564207061796c6f6164c0c0e2e1a00202020202020202020202020202020202020202020202020202020202020202e5e4a003030303030303030303030303030303030303030303030303030303030303038201f4"
+            ],
         );
     }
 }

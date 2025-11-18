@@ -1,13 +1,16 @@
 use std::io::{self, IsTerminal, Read, Write};
 
-use arkiv_sdk::entity::{Create, EntityResult, Extend, Update};
-use arkiv_sdk::events::EventsClient;
-use arkiv_sdk::{Address, Annotation, ArkivClient, ArkivRoClient, PrivateKeySigner, Url};
 use dirs::config_dir;
 use futures::StreamExt;
 use tracing::info;
 
-async fn log_num_of_entities_owned(client: &ArkivRoClient, owner_address: Address) {
+use arkiv_sdk::{
+    entity::{Create, EntityResult, Extend, Update},
+    events::EventsClient,
+    Address, Attribute, Client, PrivateKeySigner, RoClient, Url,
+};
+
+async fn log_num_of_entities_owned(client: &RoClient, owner_address: Address) {
     let n = client
         .get_entities_of_owner(owner_address)
         .await
@@ -51,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let url = Url::parse("http://localhost:8545").unwrap();
-    let client = ArkivClient::builder().wallet(signer).rpc_url(url).build();
+    let client = Client::builder().wallet(signer).rpc_url(url).build();
 
     info!("Fetching owner address...");
     let owner_address = client.get_owner_address();
@@ -71,22 +74,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Creating entities...");
     let creates = vec![
         Create {
-            data: "foo".into(),
+            payload: "foo".into(),
             btl: 25,
-            string_annotations: vec![Annotation::new("key", "foo")],
-            numeric_annotations: vec![Annotation::new("ix", 1u64)],
+            string_attributes: vec![Attribute::new("key", "foo")],
+            numeric_attributes: vec![Attribute::new("ix", 1u64)],
         },
         Create {
-            data: "bar".into(),
+            payload: "bar".into(),
             btl: 2,
-            string_annotations: vec![Annotation::new("key", "bar")],
-            numeric_annotations: vec![Annotation::new("ix", 2u64)],
+            string_attributes: vec![Attribute::new("key", "bar")],
+            numeric_attributes: vec![Attribute::new("ix", 2u64)],
         },
         Create {
-            data: "qux".into(),
+            payload: "qux".into(),
             btl: 50,
-            string_annotations: vec![Annotation::new("key", "qux")],
-            numeric_annotations: vec![Annotation::new("ix", 3u64)],
+            string_attributes: vec![Attribute::new("key", "qux")],
+            numeric_attributes: vec![Attribute::new("ix", 3u64)],
         },
     ];
     let receipts: Vec<EntityResult> = client.create_entities(creates).await?;
@@ -105,8 +108,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .update_entities(vec![Update {
             data: "foobar".into(),
             btl: 40,
-            string_annotations: vec![Annotation::new("key", "qux"), Annotation::new("foo", "bar")],
-            numeric_annotations: vec![Annotation::new("ix", 2u64)],
+            string_annotations: vec![Attribute::new("key", "qux"), Attribute::new("foo", "bar")],
+            numeric_annotations: vec![Attribute::new("ix", 2u64)],
             entity_key: third_entity_key,
         }])
         .await?;
