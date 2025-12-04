@@ -7,7 +7,7 @@ use crate::entity::EntityKey;
 /// Type representing a change of ownership operation as part of a `Transaction`.
 /// Sender must be the current owner and the entity must exist. Metadata other than
 /// the current owner is preserved.
-#[derive(Debug, Clone, Default, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
 pub struct Chown {
     /// The key of the entity to transfer.
     entity_key: EntityKey,
@@ -23,14 +23,4 @@ impl Chown {
             new_owner: new_owner.into(),
         }
     }
-}
-
-/// Represents the result of changing ownership of an entity.
-pub struct ChownResult {
-    /// The key of the entity that was transferred.
-    pub entity_key: EntityKey,
-    /// The previous owner of the entity.
-    pub prev_owner: Address,
-    /// The current owner of the entity.
-    pub curr_owner: Address,
 }

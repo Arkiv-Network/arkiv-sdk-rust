@@ -2,18 +2,20 @@ use alloy_rlp::{RlpDecodable, RlpEncodable};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
-use super::{
-    error::ValidationError,
-    types::{
-        BlocksToLive, ContentType,
-        attribute::{NumericAttribute, StringAttribute, WithAttribute},
+use crate::{
+    EntityKey,
+    entity::{
+        attribute::{NumericAttribute, StringAttribute},
+        btl::BlocksToLive,
+        content_type::ContentType,
     },
+    error::ValidationError,
+    tx::ops::WithAttribute,
 };
-use crate::entity::EntityKey;
 
 /// Type representing an update transaction in GolemBase.
 /// Used to update existing entities, including their data, BTL, and annotations.
-#[derive(Debug, Clone, Default, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
+#[derive(Debug, Clone, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
 #[rlp(trailing)]
 pub struct Update {
     /// The key of the entity to update.
@@ -34,18 +36,18 @@ impl Update {
     where
         K: Into<EntityKey>,
         B: Into<BlocksToLive>,
-        C: TryInto<ContentType<String>, Error = crate::entity::error::ValidationError>,
+        C: TryInto<ContentType<String>, Error = ValidationError>,
         P: Into<Bytes>,
     {
         UpdateBuilder::new()
     }
 
-    pub fn entity_key(&self) -> &EntityKey {
-        &self.entity_key
+    pub fn entity_key(&self) -> EntityKey {
+        self.entity_key
     }
 
-    pub fn btl(&self) -> &BlocksToLive {
-        &self.btl
+    pub fn btl(&self) -> BlocksToLive {
+        self.btl
     }
 
     pub fn content_type(&self) -> &str {
@@ -65,12 +67,12 @@ impl Update {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UpdateBuilder<K, B, C, P>
 where
     K: Into<EntityKey>,
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = crate::entity::error::ValidationError>,
+    C: TryInto<ContentType<String>, Error = ValidationError>,
     P: Into<Bytes>,
 {
     entity_key: Option<K>,
@@ -86,7 +88,7 @@ impl<K, B, C, P> Default for UpdateBuilder<K, B, C, P>
 where
     K: Into<EntityKey>,
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = crate::entity::error::ValidationError>,
+    C: TryInto<ContentType<String>, Error = ValidationError>,
     P: Into<Bytes>,
 {
     fn default() -> Self {
@@ -105,7 +107,7 @@ impl<K, B, C, P> UpdateBuilder<K, B, C, P>
 where
     K: Into<EntityKey>,
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = crate::entity::error::ValidationError>,
+    C: TryInto<ContentType<String>, Error = ValidationError>,
     P: Into<Bytes>,
 {
     pub fn new() -> Self {
@@ -161,7 +163,7 @@ impl<K, B, C, P> WithAttribute<StringAttribute> for UpdateBuilder<K, B, C, P>
 where
     K: Into<EntityKey>,
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = crate::entity::error::ValidationError>,
+    C: TryInto<ContentType<String>, Error = ValidationError>,
     P: Into<Bytes>,
 {
     fn with_attribute(mut self, attribute: StringAttribute) -> Self {
@@ -180,7 +182,7 @@ impl<K, B, C, P> WithAttribute<NumericAttribute> for UpdateBuilder<K, B, C, P>
 where
     K: Into<EntityKey>,
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = crate::entity::error::ValidationError>,
+    C: TryInto<ContentType<String>, Error = ValidationError>,
     P: Into<Bytes>,
 {
     fn with_attribute(mut self, attribute: NumericAttribute) -> Self {

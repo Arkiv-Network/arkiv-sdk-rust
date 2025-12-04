@@ -1,3 +1,6 @@
+//! Module with utility functions.
+//! Includes helpers for encoding, decoding, and other common tasks.
+
 use alloy::primitives::U256;
 use bigdecimal::{BigDecimal, ToPrimitive};
 use std::str::FromStr;

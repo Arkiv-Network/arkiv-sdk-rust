@@ -1,18 +1,24 @@
-use alloy::primitives::Address;
-use alloy::providers::Provider;
-use alloy::rpc::json_rpc::RpcError;
-use alloy::rpc::json_rpc::{RpcRecv, RpcSend};
+//! Module for JSON-RPC-related functionality.
+//! Contains utilities for interacting with JSON-RPC endpoints, including request/response types.
+
+use std::{borrow::Cow, fmt::Debug};
+
+use alloy::{
+    primitives::Address,
+    providers::Provider,
+    rpc::json_rpc::{RpcError, RpcRecv, RpcSend},
+};
 use anyhow::anyhow;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use bytes::Bytes;
 use displaydoc::Display;
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
-use std::fmt::Debug;
 use thiserror::Error;
 
-use crate::entity::types::attribute::{NumericAttribute, StringAttribute};
-use crate::{EntityKey, RoClient};
+use crate::{
+    EntityKey, RoClient,
+    entity::attribute::{NumericAttribute, StringAttribute},
+};
 
 /// Represents errors that can occur in the Arkiv RPC module.
 /// Used to wrap and describe errors from RPC requests, decoding, or deserialization.
@@ -87,7 +93,7 @@ impl RoClient {
     ) -> Result<R, Error> {
         let method = method.into();
         tracing::debug!("RPC Call - Method: {method}, Params: {params:?}");
-        self.provider
+        self.provider()
             .client()
             .request(method.clone(), params)
             .await

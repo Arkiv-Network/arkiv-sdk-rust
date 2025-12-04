@@ -1,3 +1,4 @@
+// TODO: Use `std::time::Duration`, get cadence when constructing client
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +19,7 @@ use serde::{Deserialize, Serialize};
 /// # Panics
 ///
 /// Panics if the value is `u64::MIN`, i.e. it must be non-zero.
-#[derive(Debug, Clone, Copy, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
 pub struct BlocksToLive(u64);
 impl BlocksToLive {
     pub const fn new(btl: u64) -> Self {

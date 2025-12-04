@@ -1,9 +1,7 @@
-use crate::entity::types::content_type::ContentTypeValidationError;
-
 #[derive(Debug, thiserror::Error, PartialEq, Eq, Clone)]
 pub enum ValidationError {
     #[error(transparent)]
-    ContentType(#[from] ContentTypeValidationError),
+    ContentType(#[from] crate::entity::content_type::Error),
 
     #[error("failed to convert string to MIME: {0}")]
     MimeFromStr(String),

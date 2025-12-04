@@ -1,18 +1,20 @@
-use alloy::primitives::B256;
+//! Module for Arkiv entities and data types.
+//! Defines core types such as annotations, hashes, and entity representations.
+
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
-use types::attribute::{NumericAttribute, StringAttribute};
 
-pub mod chown;
-pub mod create;
-pub mod delete;
-pub mod error;
-pub mod extend;
-pub mod tx;
-pub mod types;
-pub mod update;
+pub mod attribute;
+pub mod btl;
+pub mod content_type;
 
-use crate::entity::types::btl::BlocksToLive;
+use crate::entity::{
+    attribute::{NumericAttribute, StringAttribute},
+    btl::BlocksToLive,
+};
+
+/// A type alias for the hash used to identify entities in GolemBase.
+pub type EntityKey = alloy::primitives::B256;
 
 /// Represents an entity with data, BTL, and annotations.
 /// Used for reading entity state from the chain.
@@ -27,19 +29,6 @@ pub struct Entity {
     /// Numeric annotations for the entity.
     pub numeric_attributes: Vec<NumericAttribute>,
 }
-
-/// Represents the result of creating or updating an entity.
-/// Contains the entity key and its expiration block.
-#[derive(Debug, Clone, Default, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
-pub struct EntityResult {
-    /// The key of the entity.
-    pub entity_key: EntityKey,
-    /// The block number at which the entity expires.
-    pub expiration_block: u64,
-}
-
-/// A type alias for the hash used to identify entities in GolemBase.
-pub type EntityKey = B256;
 
 // Tests check serialization compatibility with go implementation.
 #[cfg(test)]

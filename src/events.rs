@@ -1,3 +1,6 @@
+//! Module for event handling.
+//! Contains types and utilities for working with Arkiv events.
+
 use alloy::eips::BlockNumberOrTag;
 use alloy::providers::{DynProvider, Provider, ProviderBuilder, WsConnect};
 use alloy::rpc::types::Log;

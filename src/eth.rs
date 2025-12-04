@@ -1,25 +1,26 @@
-// TODO: In general it's bad practice to expect heap allocated types like Vec when
-// you really just want an iterator or slice. We can be much more general to avoid
-// the overhead in situations when the expected type from an end user is really just
-// some B256 hash or other arbitrary string or numeric data.
-use crate::{
-    Client,
-    entity::{
-        EntityKey, EntityResult,
-        create::Create,
-        delete::{Delete, DeleteResult},
-        extend::{Extend, ExtendResult},
-        tx::{Transaction, TransactionResult},
-        update::Update,
-    },
-};
+//! Module for Ethereum transaction-related functionality.
+//! Provides helpers for constructing, signing, and sending Ethereum transactions.
 
-use alloy::network::TransactionBuilder;
-use alloy::primitives::{Address, TxKind, address};
-use alloy::providers::Provider;
-use alloy::rpc::types::{TransactionReceipt, TransactionRequest};
+use alloy::{
+    network::TransactionBuilder,
+    primitives::{Address, TxKind, address},
+    providers::Provider,
+    rpc::types::{TransactionReceipt as RawTransactionReceipt, TransactionRequest},
+};
 use displaydoc::Display;
 use thiserror::Error;
+
+use crate::{
+    Client,
+    tx::{
+        Transaction,
+        ops::{create::Create, delete::Delete, extend::Extend, update::Update},
+        receipt::{
+            TransactionReceipt, create::CreateReceipt, delete::DeleteReceipt,
+            extend::ExtendReceipt, update::UpdateReceipt,
+        },
+    },
+};
 
 alloy::sol! {
     contract ArkivAbi {
@@ -62,25 +63,27 @@ pub enum Error {
 pub const STORAGE_ADDRESS: Address = address!("0x0000000000000000000000000000000060138453");
 
 impl Client {
-    pub async fn send_transaction(&self, tx: Transaction) -> Result<TransactionResult, Error> {
-        let receipt = self.create_raw_transaction(tx).await?;
-        receipt.try_into()
+    pub async fn send_transaction(&self, tx: Transaction) -> Result<TransactionReceipt, Error> {
+        self.send_raw_transaction(tx).await?.try_into()
     }
 
     /// Creates one or more new entities in Arkiv and returns their results.
     /// Sends a transaction to the storage contract and parses the resulting logs.
-    pub async fn create_entities(&self, creates: Vec<Create>) -> Result<Vec<EntityResult>, Error> {
+    pub async fn create_entities<Creates: Into<Vec<Create>>>(
+        &self,
+        creates: Creates,
+    ) -> Result<Vec<CreateReceipt>, Error> {
         let result = self
-            .send_transaction(Transaction::builder().creates(creates).build())
+            .send_transaction(Transaction::builder().creates(creates.into()).build())
             .await;
 
         result.and_then(|res| match res {
-            TransactionResult {
-                creates,
-                updates,
-                deletes,
-                extensions,
-            } if updates.is_empty() && deletes.is_empty() && extensions.is_empty() => Ok(creates),
+            TransactionReceipt {
+                created,
+                updated,
+                deleted,
+                extended,
+            } if updated.is_empty() && deleted.is_empty() && extended.is_empty() => Ok(created),
             _ => Err(Error::UnexpectedLogDataError(
                 "Unexpected content in tx logs, this should never happen!".to_string(),
             )),
@@ -89,18 +92,21 @@ impl Client {
 
     /// Updates one or more entities in Arkiv and returns their results.
     /// Sends a transaction to the storage contract and parses the resulting logs.
-    pub async fn update_entities(&self, updates: Vec<Update>) -> Result<Vec<EntityResult>, Error> {
+    pub async fn update_entities<Updates: Into<Vec<Update>>>(
+        &self,
+        updates: Updates,
+    ) -> Result<Vec<UpdateReceipt>, Error> {
         let result = self
-            .send_transaction(Transaction::builder().updates(updates).build())
+            .send_transaction(Transaction::builder().updates(updates.into()).build())
             .await;
 
         result.and_then(|res| match res {
-            TransactionResult {
-                creates,
-                updates,
-                deletes,
-                extensions,
-            } if creates.is_empty() && deletes.is_empty() && extensions.is_empty() => Ok(updates),
+            TransactionReceipt {
+                created,
+                updated,
+                deleted,
+                extended,
+            } if created.is_empty() && deleted.is_empty() && extended.is_empty() => Ok(updated),
             _ => Err(Error::UnexpectedLogDataError(
                 "Unexpected content in tx logs, this should never happen!".to_string(),
             )),
@@ -109,26 +115,21 @@ impl Client {
 
     /// Deletes one or more entities in Arkiv and returns their results.
     /// Sends a transaction to the storage contract and parses the resulting logs.
-    pub async fn delete_entities(
+    pub async fn delete_entities<Deletes: Into<Vec<Delete>>>(
         &self,
-        deletes: Vec<EntityKey>,
-    ) -> Result<Vec<DeleteResult>, Error> {
+        deletes: Deletes,
+    ) -> Result<Vec<DeleteReceipt>, Error> {
         let result = self
-            .send_transaction(
-                Transaction::builder()
-                    // TODO: See mod comment
-                    .deletes(deletes.into_iter().map(From::from).collect::<Vec<Delete>>())
-                    .build(),
-            )
+            .send_transaction(Transaction::builder().deletes(deletes.into()).build())
             .await;
 
         result.and_then(|res| match res {
-            TransactionResult {
-                creates,
-                updates,
-                deletes,
-                extensions,
-            } if creates.is_empty() && updates.is_empty() && extensions.is_empty() => Ok(deletes),
+            TransactionReceipt {
+                created,
+                updated,
+                deleted,
+                extended,
+            } if created.is_empty() && updated.is_empty() && extended.is_empty() => Ok(deleted),
             _ => Err(Error::UnexpectedLogDataError(
                 "Unexpected content in tx logs, this should never happen!".to_string(),
             )),
@@ -137,21 +138,21 @@ impl Client {
 
     /// Extends the BTL (block time to live) of one or more entities and returns their results.
     /// Sends a transaction to the storage contract and parses the resulting logs for old and new expiration blocks.
-    pub async fn extend_entities(
+    pub async fn extend_entities<Extensions: Into<Vec<Extend>>>(
         &self,
-        extensions: Vec<Extend>,
-    ) -> Result<Vec<ExtendResult>, Error> {
+        extensions: Extensions,
+    ) -> Result<Vec<ExtendReceipt>, Error> {
         let result = self
-            .send_transaction(Transaction::builder().extensions(extensions).build())
+            .send_transaction(Transaction::builder().extensions(extensions.into()).build())
             .await;
 
         result.and_then(|res| match res {
-            TransactionResult {
-                creates,
-                updates,
-                deletes,
-                extensions,
-            } if creates.is_empty() && updates.is_empty() && deletes.is_empty() => Ok(extensions),
+            TransactionReceipt {
+                created,
+                updated,
+                deleted,
+                extended,
+            } if created.is_empty() && updated.is_empty() && deleted.is_empty() => Ok(extended),
             _ => Err(Error::UnexpectedLogDataError(
                 "Unexpected content in tx logs, this should never happen!".to_string(),
             )),
@@ -170,7 +171,12 @@ impl Client {
         //      Error: server returned an error response: error code -32000: replacement transaction underpriced
         let mut nm = self.nonce_manager.lock().await;
         let wallet_address = self.wallet.address();
-        match self.provider.get_transaction_count(wallet_address).await {
+        match self
+            .ro_client
+            .provider()
+            .get_transaction_count(wallet_address)
+            .await
+        {
             Ok(on_chain_nonce) => {
                 nm.base_nonce = on_chain_nonce;
             }
@@ -181,12 +187,12 @@ impl Client {
         nm.next_nonce().await
     }
 
-    /// Creates and sends a raw transaction to the Arkiv storage contract.
+    /// Sends a raw transaction to the Arkiv storage contract.
     /// Encodes the transaction payload and sends it to the contract address.
-    pub async fn create_raw_transaction(
+    pub async fn send_raw_transaction(
         &self,
         payload: Transaction,
-    ) -> Result<TransactionReceipt, Error> {
+    ) -> Result<RawTransactionReceipt, Error> {
         tracing::debug!("payload: {payload:?}");
         let encoded = payload.encoded();
         tracing::debug!("buffer: {encoded:?}");
@@ -197,7 +203,8 @@ impl Client {
             to: Some(TxKind::Call(STORAGE_ADDRESS)),
             input: encoded.into(),
             chain_id: Some(
-                self.provider
+                self.ro_client
+                    .provider()
                     .get_chain_id()
                     .await
                     .map_err(|e| Error::TransactionSendError(e.to_string()))?,
@@ -210,7 +217,8 @@ impl Client {
         let gas_limit = if let Some(gas_limit) = payload.gas_limit {
             gas_limit
         } else {
-            self.provider
+            self.ro_client
+                .provider()
                 .estimate_gas(tx.clone())
                 .await
                 .map_err(|e| Error::TransactionSendError(format!("Failed to estimate gas: {e}")))?
@@ -226,7 +234,8 @@ impl Client {
         }
 
         let pending_tx = self
-            .provider
+            .ro_client
+            .provider()
             .send_transaction(tx.clone())
             .await
             .map_err(|e| Error::TransactionSendError(e.to_string()))?;
@@ -242,7 +251,7 @@ impl Client {
         }
 
         if !receipt.status() {
-            self.provider.call(tx).await.map_err(|e| {
+            self.ro_client.provider().call(tx).await.map_err(|e| {
                 Error::TransactionReceiptError(format!("Error during tx execution: {e}"))
             })?;
         }

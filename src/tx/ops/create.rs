@@ -2,13 +2,15 @@ use alloy_rlp::{RlpDecodable, RlpEncodable};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
-use crate::entity::types::{
-    attribute::{NumericAttribute, StringAttribute, WithAttribute},
-    btl::BlocksToLive,
-    content_type::ContentType,
+use crate::{
+    entity::{
+        attribute::{NumericAttribute, StringAttribute},
+        btl::BlocksToLive,
+        content_type::ContentType,
+    },
+    error::ValidationError,
+    tx::ops::WithAttribute,
 };
-
-use super::error::ValidationError;
 
 /// Type representing part of a `Transaction` for creating a new `Entity`.
 #[derive(Debug, Clone, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
@@ -32,7 +34,7 @@ impl Create {
     pub fn builder<B, C, P>() -> CreateBuilder<B, C, P>
     where
         B: Into<BlocksToLive>,
-        C: TryInto<ContentType<String>, Error = crate::entity::error::ValidationError>,
+        C: TryInto<ContentType<String>, Error = ValidationError>,
         P: Into<Bytes>,
     {
         CreateBuilder::new()
@@ -69,7 +71,7 @@ impl Create {
 pub struct CreateBuilder<B, C, P>
 where
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = crate::entity::error::ValidationError>,
+    C: TryInto<ContentType<String>, Error = ValidationError>,
     P: Into<Bytes>,
 {
     /// The blocks-to-live (BTL) for the entity.
@@ -87,7 +89,7 @@ where
 impl<B, C, P> Default for CreateBuilder<B, C, P>
 where
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = crate::entity::error::ValidationError>,
+    C: TryInto<ContentType<String>, Error = ValidationError>,
     P: Into<Bytes>,
 {
     fn default() -> Self {
@@ -103,7 +105,7 @@ where
 impl<B, C, P> CreateBuilder<B, C, P>
 where
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = crate::entity::error::ValidationError>,
+    C: TryInto<ContentType<String>, Error = ValidationError>,
     P: Into<Bytes>,
 {
     pub fn new() -> Self {
@@ -149,7 +151,7 @@ where
 impl<B, C, P> WithAttribute<StringAttribute> for CreateBuilder<B, C, P>
 where
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = crate::entity::error::ValidationError>,
+    C: TryInto<ContentType<String>, Error = ValidationError>,
     P: Into<Bytes>,
 {
     fn with_attribute(mut self, attribute: StringAttribute) -> Self {
@@ -167,7 +169,7 @@ where
 impl<B, C, P> WithAttribute<NumericAttribute> for CreateBuilder<B, C, P>
 where
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = crate::entity::error::ValidationError>,
+    C: TryInto<ContentType<String>, Error = ValidationError>,
     P: Into<Bytes>,
 {
     fn with_attribute(mut self, attribute: NumericAttribute) -> Self {

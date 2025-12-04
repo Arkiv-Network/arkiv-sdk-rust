@@ -1,72 +1,59 @@
-use std::ops::Deref;
+//! Module for Arkiv client functionality.
+//! Exposes the main client interface for interacting with the Arkiv network.
+
 use std::sync::Arc;
 
-use alloy::eips::BlockNumberOrTag;
-use alloy::primitives::Address;
-use alloy::providers::{DynProvider, Provider, ProviderBuilder};
-use alloy::rpc::client::ClientRef;
-use alloy::signers::local::PrivateKeySigner;
-use alloy::transports::http::reqwest::Url;
+use alloy::{
+    eips::BlockNumberOrTag,
+    network::Network,
+    network::TransactionBuilder,
+    primitives::Address,
+    providers::{DynProvider, Provider, ProviderBuilder},
+    rpc::client::ClientRef,
+    signers::local::PrivateKeySigner,
+    transports::http::reqwest::Url,
+};
 use bigdecimal::BigDecimal;
 use bon::bon;
+use nonce::NonceManager;
 use tokio::sync::Mutex;
 
 use crate::utils::wei_to_eth;
 
-/// Tracks and assigns sequential Ethereum nonces for concurrent transactions.
-pub struct NonceManager {
-    /// Last known on-chain nonce.
-    pub base_nonce: u64,
-    /// Number of in-flight (pending) transactions.
-    pub in_flight: u64,
+mod nonce;
+mod read_only;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Arkiv {
+    _private: (),
 }
+impl Network for Arkiv {
+    type TxType = alloy::consensus::TxType;
 
-impl NonceManager {
-    /// Returns the next available nonce and increments the in-flight counter.
-    pub async fn next_nonce(&mut self) -> u64 {
-        let nonce = self.base_nonce + self.in_flight;
-        self.in_flight += 1;
-        nonce
-    }
+    type TxEnvelope = alloy::consensus::TxEnvelope;
 
-    /// Marks a transaction as completed by decrementing the in-flight counter.
-    pub async fn complete(&mut self) {
-        if self.in_flight > 0 {
-            self.in_flight -= 1;
-        }
-    }
+    type UnsignedTx = alloy::consensus::TypedTransaction;
+
+    type ReceiptEnvelope = alloy::consensus::ReceiptEnvelope;
+
+    type Header = alloy::consensus::Header;
+
+    type TransactionRequest = alloy::rpc::types::eth::transaction::TransactionRequest;
+
+    type TransactionResponse = alloy::rpc::types::eth::Transaction;
+
+    type ReceiptResponse = alloy::rpc::types::eth::TransactionReceipt;
+
+    type HeaderResponse = alloy::rpc::types::eth::Header;
+
+    type BlockResponse = alloy::rpc::types::eth::Block;
 }
+pub struct ArkivProvider<N: Network = Arkiv>(Arc<dyn Provider<N> + 'static>);
 
-/// A client for interacting with the Arkiv system.
-/// Provides methods for account management, entity operations, balance queries, and event subscriptions.
-///
-/// # Example Usage
-///
-/// A client builder is provided for both [`ArkivClient`] and [`ArkivRoClient`],
-/// however, an instance of [`ArkivClient`] can be dereferenced to [`ArkivRoClient`] like so:
-///
-/// ```rs
-/// use arkiv_sdk::{Client, RoClient, PrivateKeySigner, Url};
-///
-/// let keypath = dirs::config_dir()
-///     .ok_or("Failed to get config directory")?
-///     .join("golembase")
-///     .join("wallet.json");
-/// let signer = PrivateKeySigner::decrypt_keystore(keypath, "password")?;
-/// let url = Url::parse("http://localhost:8545")?;
-///
-/// let client = Client::builder()
-///     .wallet(signer)
-///     .rpc_url(url)
-///     .build();
-///
-/// let ro_client: &RoClient = *client;
-/// ```
+/// A read-only wrapper around [`DynProvider`] which provides methods
+/// for interacting with the Arkiv Network.
 #[derive(Clone)]
-pub struct RoClient {
-    /// The underlying provider for making RPC calls.
-    pub(crate) provider: DynProvider,
-}
+pub struct RoClient(DynProvider);
 
 #[bon]
 impl RoClient {
@@ -74,13 +61,14 @@ impl RoClient {
     /// Initializes the provider and sets up default configuration.
     #[builder]
     pub fn builder(rpc_url: Url, provider: Option<DynProvider>) -> Self {
-        let provider = provider.unwrap_or_else(|| {
-            ProviderBuilder::new()
-                .connect_http(rpc_url.clone())
-                .erased()
-        });
+        let provider =
+            provider.unwrap_or_else(|| ProviderBuilder::new().connect_http(rpc_url).erased());
 
-        Self { provider }
+        Self(provider)
+    }
+
+    pub(crate) fn provider(&self) -> &DynProvider {
+        &self.0
     }
 }
 
@@ -107,24 +95,16 @@ impl RoClient {
 ///     .rpc_url(url)
 ///     .build();
 ///
-/// let ro_client: &RoClient = *client;
+/// let ro_client: &RoClient = client.read_only();
 /// ```
 #[derive(Clone)]
 pub struct Client {
-    /// The underlying [`arkive_sdk::RoClient`].
+    /// A read-only wrapped [`DynProvider`] arkiv client.
     pub(crate) ro_client: RoClient,
     /// The Ethereum address of the client owner.
     pub(crate) wallet: PrivateKeySigner,
     /// Nonce manager for tracking transaction nonces.
     pub(crate) nonce_manager: Arc<Mutex<NonceManager>>,
-}
-
-impl Deref for Client {
-    type Target = RoClient;
-
-    fn deref(&self) -> &Self::Target {
-        &self.ro_client
-    }
 }
 
 #[bon]
@@ -133,14 +113,14 @@ impl Client {
     /// Initializes the provider and sets up default configuration.
     #[builder]
     pub fn builder(wallet: PrivateKeySigner, rpc_url: Url) -> Self {
-        let provider = ProviderBuilder::new()
-            .wallet(wallet.clone())
-            .connect_http(rpc_url.clone())
-            .erased();
-
         let ro_client = RoClient::builder()
-            .rpc_url(rpc_url)
-            .provider(provider)
+            .rpc_url(rpc_url.clone())
+            .provider(
+                ProviderBuilder::new()
+                    .wallet(wallet.clone())
+                    .connect_http(rpc_url)
+                    .erased(),
+            )
             .build();
 
         Self {
@@ -153,20 +133,26 @@ impl Client {
         }
     }
 
-    /// Gets the underlying Reqwest client used for HTTP requests.
-    pub fn get_reqwest_client(&self) -> ClientRef<'_> {
-        self.provider.client()
+    /// Returns a reference to a read-only client.
+    pub fn read_only(&self) -> &RoClient {
+        &self.ro_client
     }
 
-    /// Gets the Ethereum address of the client owner.
-    pub fn get_owner_address(&self) -> Address {
+    /// Returns a reference to the underlying JSON-RPC client.
+    pub fn rpc_client(&self) -> ClientRef<'_> {
+        self.read_only().provider().client()
+    }
+
+    /// The Ethereum address of the client owner.
+    pub fn owner_address(&self) -> Address {
         self.wallet.address()
     }
 
     /// Gets the chain ID from the provider.
     /// Returns the chain ID as a `u64`.
     pub async fn get_chain_id(&self) -> anyhow::Result<u64> {
-        self.provider
+        self.read_only()
+            .provider()
             .get_chain_id()
             .await
             .map_err(|e| anyhow::anyhow!("Failed to get chain ID: {e}"))
@@ -174,7 +160,7 @@ impl Client {
 
     /// Gets an account's ETH balance as a `BigDecimal`.
     pub async fn get_balance(&self, account: Address) -> anyhow::Result<BigDecimal> {
-        let balance = self.provider.get_balance(account).await?;
+        let balance = self.read_only().provider().get_balance(account).await?;
         Ok(wei_to_eth(balance))
     }
 
@@ -182,7 +168,8 @@ impl Client {
     /// Returns the latest block number as a `u64`.
     pub async fn get_current_block_number(&self) -> anyhow::Result<u64> {
         let latest_block = self
-            .provider
+            .read_only()
+            .provider()
             .get_block_by_number(BlockNumberOrTag::Latest)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Failed to get latest block"))?;

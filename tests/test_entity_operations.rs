@@ -4,12 +4,9 @@ use bytes::Bytes;
 use serial_test::serial;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use arkiv_sdk::entity::{
-    create::Create,
-    extend::Extend,
-    tx::Transaction,
-    types::attribute::{NumericAttribute, StringAttribute, WithAttribute},
-    update::Update,
+use arkiv_sdk::{
+    entity::attribute::{NumericAttribute, StringAttribute},
+    tx::ops::{WithAttribute, create::Create, delete::Delete, extend::Extend, update::Update},
 };
 use arkiv_test_utils::get_client;
 
@@ -48,7 +45,7 @@ async fn test_create_and_retrieve_entry() -> Result<()> {
 
     assert_eq!(metadata.string_annotations[0].value(), "Test");
     assert_eq!(metadata.numeric_annotations[0].value(), &timestamp);
-    assert_eq!(metadata.owner, client.get_owner_address());
+    assert_eq!(metadata.owner, client.owner_address());
     // Entry should be created in start_block + 1.
     assert_eq!(metadata.expires_at_block.unwrap(), start_block + 1001);
     Ok(())
@@ -142,7 +139,7 @@ async fn test_entity_operations() -> Result<()> {
 
     // Remove second entity
     client
-        .delete_entities(vec![entity2_result.entity_key])
+        .delete_entities(vec![Delete::from(entity2_result.entity_key)])
         .await?;
     tracing::info!("Second entry removed");
 
@@ -269,7 +266,7 @@ async fn test_failed_tx_explicit_gas() -> Result<()> {
     let start_block = client.get_current_block_number().await?;
     tracing::info!("Starting at block: {start_block}");
 
-    let create_tx = Transaction::builder()
+    let create_tx = arkiv_sdk::tx::Transaction::builder()
         .extensions(vec![Extend::new(FixedBytes::with_last_byte(1), 1000)])
         .gas_limit(235200)
         .build();

@@ -5,9 +5,12 @@ use futures::StreamExt;
 use tracing::info;
 
 use arkiv_sdk::{
-    entity::{Create, EntityResult, Extend, Update},
-    events::EventsClient,
     Address, Attribute, Client, PrivateKeySigner, RoClient, Url,
+    events::EventsClient,
+    tx::{
+        ops::{create::Create, delete::Delete},
+        receipt::create::CreateReceipt,
+    },
 };
 
 async fn log_num_of_entities_owned(client: &RoClient, owner_address: Address) {
@@ -57,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::builder().wallet(signer).rpc_url(url).build();
 
     info!("Fetching owner address...");
-    let owner_address = client.get_owner_address();
+    let owner_address = client.owner_address();
     info!("Owner address: {}", owner_address);
     log_num_of_entities_owned(&client, owner_address).await;
 
@@ -92,12 +95,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             numeric_attributes: vec![Attribute::new("ix", 3u64)],
         },
     ];
-    let receipts: Vec<EntityResult> = client.create_entities(creates).await?;
+    let receipts: Vec<CreateReceipt> = client.create_entities(creates).await?;
     info!("Created entities: {:?}", receipts);
     log_num_of_entities_owned(&client, owner_address).await;
 
     info!("Deleting first entity...");
-    client.delete_entities(vec![receipts[0].entity_key]).await?;
+    client
+        .delete_entities(vec![Delete::from(receipts[0].entity_key)])
+        .await?;
     log_num_of_entities_owned(&client, owner_address).await;
 
     info!("Updating the third entity...");
@@ -133,7 +138,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .query_entity_keys("ix = 1 || ix = 2 || ix = 3")
         .await?;
     info!("Remaining entities: {:?}", remaining_entities);
-    client.delete_entities(remaining_entities).await?;
+    client
+        .delete_entities(
+            remaining_entities
+                .into_iter()
+                .map(Into::<Delete>::into)
+                .collect(),
+        )
+        .await?;
     log_num_of_entities_owned(&client, owner_address).await;
 
     Ok(())
