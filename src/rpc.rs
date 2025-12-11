@@ -1,199 +1,107 @@
-//! Module for JSON-RPC-related functionality.
-//! Contains utilities for interacting with JSON-RPC endpoints, including request/response types.
-
-use std::{borrow::Cow, fmt::Debug};
-
-use alloy::{
-    primitives::Address,
-    providers::Provider,
-    rpc::json_rpc::{RpcError, RpcRecv, RpcSend},
-};
-use anyhow::anyhow;
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use bytes::Bytes;
-use displaydoc::Display;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
-use crate::{
-    EntityKey, RoClient,
-    entity::attribute::{NumericAttribute, StringAttribute},
-};
-
-/// Represents errors that can occur in the Arkiv RPC module.
-/// Used to wrap and describe errors from RPC requests, decoding, or deserialization.
-#[derive(Debug, Display, Error)]
-pub enum Error {
-    /// Failed to send the RPC request: {0}
-    RpcRequestError(String),
-    /// Failed to decode the base64-encoded storage value: {0}
-    Base64DecodeError(String),
-    /// Failed to deserialize the RPC response: {0}
-    ResponseDeserializationError(String),
-    /// Unexpected error occurred: {0}
-    UnexpectedError(String),
+/// Available RPC methods for interacting with the Arkiv network.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ArkivRpcMethod {
+    /// `arkiv_query`
+    ///
+    /// Filter and retrieve entities matching a query expression.
+    Query,
+    /// `arkiv_getEntityCount`
+    ///
+    /// Returns total number of entities at current block.
+    GetEntityCount,
+    /// `arkiv_getNumberOfUsedSlots`
+    ///
+    /// Returns storage slot usage accounting.
+    GetNumberOfUsedSlots,
+    /// `arkiv_getBlockTiming`
+    ///
+    /// Returns current block timing information.
+    GetBlockTiming,
 }
+impl ArkivRpcMethod {
+    const ARKIV_QUERY: &str = "arkiv_query";
+    const ARKIV_GET_ENTITY_COUNT: &str = "arkiv_getEntityCount";
+    const ARKIV_GET_NUMBER_OF_USED_SLOTS: &str = "arkiv_getNumberOfUsedSlots";
+    const ARKIV_GET_BLOCK_TIMING: &str = "arkiv_getBlockTiming";
 
-/// Type representing metadata for an entity.
-/// Contains information such as expiration, payload, annotations, and owner.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EntityMetaData {
-    /// The block number at which the entity expires.
-    pub expires_at_block: Option<u64>,
-    /// The payload associated with the entity.
-    pub payload: Option<String>,
-    /// String annotations for the entity.
-    pub string_annotations: Vec<StringAttribute>,
-    /// Numeric annotations for the entity.
-    pub numeric_annotations: Vec<NumericAttribute>,
-    /// The owner of the entity.
-    pub owner: Address,
+    /// Return the corresponding method as a `&'static str`.
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Query => Self::ARKIV_QUERY,
+            Self::GetEntityCount => Self::ARKIV_GET_ENTITY_COUNT,
+            Self::GetNumberOfUsedSlots => Self::ARKIV_GET_NUMBER_OF_USED_SLOTS,
+            Self::GetBlockTiming => Self::ARKIV_GET_BLOCK_TIMING,
+        }
+    }
 }
-
-/// Represents a single search result from a query.
-/// Contains the entity key and the value (decoded from base64).
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SearchResult {
-    #[serde(rename = "key")]
-    pub key: EntityKey,
-    #[serde(rename = "value", deserialize_with = "deserialize_base64")]
-    pub value: Bytes,
+impl std::ops::Deref for ArkivRpcMethod {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        &self.as_str()
+    }
 }
-
-/// Helper for deserializing base64-encoded storage values.
-/// Used to decode entity values returned from the RPC API.
-fn deserialize_base64<'de, D>(deserializer: D) -> Result<Bytes, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    BASE64
-        .decode(s)
-        .map(Bytes::from)
-        .map_err(serde::de::Error::custom)
-}
-
-impl SearchResult {
-    /// Converts the value to a UTF-8 string.
-    /// Returns an error if the value is not valid UTF-8.
-    pub fn value_as_string(&self) -> anyhow::Result<String> {
-        String::from_utf8(self.value.to_vec())
-            .map_err(|e| anyhow::anyhow!("Failed to decode search result to string: {e}"))
+impl From<ArkivRpcMethod> for std::borrow::Cow<'static, str> {
+    fn from(value: ArkivRpcMethod) -> Self {
+        value.into()
     }
 }
 
-impl RoClient {
-    /// Makes a JSON-RPC call to the GolemBase endpoint.
-    /// Handles serialization, deserialization, and error mapping for RPC requests.
-    pub(crate) async fn rpc_call<S: RpcSend, R: RpcRecv>(
-        &self,
-        method: impl Into<Cow<'static, str>>,
-        params: S,
-    ) -> Result<R, Error> {
-        let method = method.into();
-        tracing::debug!("RPC Call - Method: {method}, Params: {params:?}");
-        self.provider()
-            .client()
-            .request(method.clone(), params)
-            .await
-            .inspect(|res| tracing::debug!("RPC Response: {res:?}"))
-            .map_err(|e| match e {
-                RpcError::ErrorResp(err) => {
-                    anyhow!("Error response from RPC service: {err}")
-                }
-                RpcError::SerError(err) => {
-                    anyhow!("Serialization error: {err}")
-                }
-                RpcError::DeserError { err, text } => {
-                    tracing::debug!("Deserialization error: {err}, response text: {text}");
-                    anyhow!("Deserialization error: {err}")
-                }
-                _ => anyhow!("{e}"),
-            })
-            .map_err(|e| Error::RpcRequestError(e.to_string()))
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QueryOpts {
+    /// Historical block number for query
+    at_block: Option<u64>,
+    /// Which fields to return
+    include_data: Option<IncludeData>,
+    /// Ordering by attributes
+    order_by: Option<Vec<OrderByAttribute>>,
+    /// Pagination limit
+    results_per_page: Option<u64>,
+    /// Pagination cursor from previous response
+    cursor: Option<String>,
+}
 
-    /// Gets the total count of entities in Arkiv.
-    /// Returns the number of entities currently stored.
-    pub async fn get_entity_count(&self) -> Result<u64, Error> {
-        self.rpc_call::<(), u64>("golembase_getEntityCount", ())
-            .await
-    }
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct IncludeData {
+    /// Entity key hash
+    key: bool,
+    /// User-defined attributes
+    attributes: bool,
+    /// System-generated attributes ($sequence, $creator)
+    synthetic_attributes: bool,
+    /// Entity data content
+    payload: bool,
+    /// MIME type
+    content_type: bool,
+    /// Expiration block number
+    expiration: bool,
+    /// Owner address
+    owner: bool,
+    /// Creation block number
+    created_at_block: bool,
+    /// Last modification block
+    last_modified_at_block: bool,
+    /// Transaction index
+    transaction_index_in_block: bool,
+    /// Operation index
+    operation_index_in_transaction: bool,
+}
 
-    /// Gets the entity keys of all entities in Arkiv.
-    /// Returns a vector of all entity keys.
-    pub async fn get_all_entity_keys(&self) -> Result<Vec<EntityKey>, Error> {
-        let result = self
-            .rpc_call::<(), Option<Vec<EntityKey>>>("golembase_getAllEntityKeys", ())
-            .await?;
-        Ok(result.unwrap_or_default())
-    }
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct OrderByAttribute {
+    name: String,
+    #[serde(rename = "type")]
+    r#type: String,
+    #[serde(rename = "desc")]
+    descending: bool,
+}
 
-    /// Gets the entity keys of all entities owned by the given address.
-    /// Returns a vector of entity keys for the specified owner.
-    pub async fn get_entities_of_owner(&self, address: Address) -> Result<Vec<EntityKey>, Error> {
-        let result = self
-            .rpc_call::<&[Address], Option<Vec<EntityKey>>>(
-                "golembase_getEntitiesOfOwner",
-                &[address],
-            )
-            .await?;
-        Ok(result.unwrap_or_default())
-    }
-
-    /// Gets the storage value associated with the given entity key.
-    /// Decodes the value from base64 and attempts to convert it to the requested type.
-    pub async fn get_storage_value<T: TryFrom<Vec<u8>>>(&self, key: EntityKey) -> Result<T, Error>
-    where
-        <T as TryFrom<Vec<u8>>>::Error: std::fmt::Display,
-    {
-        let encoded_value = self
-            .rpc_call::<&[EntityKey], String>("golembase_getStorageValue", &[key])
-            .await?;
-        let decoded = BASE64
-            .decode(&encoded_value)
-            .map_err(|e| Error::Base64DecodeError(e.to_string()))?;
-        T::try_from(decoded).map_err(|e| Error::UnexpectedError(e.to_string()))
-    }
-
-    /// Queries entities in Arkiv based on annotations.
-    /// Returns a vector of `SearchResult` matching the query string.
-    pub async fn query_entities(&self, query: &str) -> Result<Vec<SearchResult>, Error> {
-        let results = self
-            .rpc_call::<&[&str], Option<Vec<SearchResult>>>("golembase_queryEntities", &[query])
-            .await?;
-        // Arkiv returns null if no entities are found. Option is used to correctly
-        // deserialize this value in Rust, since Vec<_> expects empty array [].
-        Ok(results.unwrap_or_default())
-    }
-
-    /// Queries entities in Arkiv based on annotations and returns only their keys.
-    /// Returns a vector of entity keys matching the query string.
-    pub async fn query_entity_keys(&self, query: &str) -> Result<Vec<EntityKey>, Error> {
-        let results = self.query_entities(query).await?;
-        Ok(results.into_iter().map(|result| result.key).collect())
-    }
-
-    /// Gets all entity keys for entities that will expire at the given block number.
-    /// Returns a vector of entity keys expiring at the specified block.
-    pub async fn get_entities_to_expire_at_block(
-        &self,
-        block_number: u64,
-    ) -> Result<Vec<EntityKey>, Error> {
-        let result = self
-            .rpc_call::<u64, Option<Vec<EntityKey>>>(
-                "golembase_getEntitiesToExpireAtBlock",
-                block_number,
-            )
-            .await?;
-        Ok(result.unwrap_or_default())
-    }
-
-    /// Gets metadata for a specific entity.
-    /// Returns an `EntityMetaData` struct for the given entity key.
-    pub async fn get_entity_metadata(&self, key: EntityKey) -> Result<EntityMetaData, Error> {
-        self.rpc_call::<&[EntityKey], EntityMetaData>("golembase_getEntityMetaData", &[key])
-            .await
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct BlockTiming {
+    current_block: u64,
+    current_block_time: u64,
+    #[serde(rename = "duration")]
+    block_duration: u64,
 }

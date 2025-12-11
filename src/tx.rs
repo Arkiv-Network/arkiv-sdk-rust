@@ -1,59 +1,113 @@
+use std::ops::{Deref, DerefMut};
+
+use alloy::{
+    network::{Network, TransactionBuilder},
+    primitives::{Address, TxKind},
+};
 use alloy_rlp::{Encodable, RlpDecodable, RlpEncodable};
-use bon::bon;
 
 pub mod ops;
 pub mod receipt;
 
-use ops::{create::Create, delete::Delete, extend::Extend, update::Update};
+use ops::{chown::Chown, create::Create, delete::Delete, extend::Extend, update::Update};
 
-/// Type representing a transaction in GolemBase, including creates, updates, deletes, and extensions.
-/// Used as the main payload for submitting entity changes to the chain.
-#[derive(Debug, Clone)]
-pub struct Transaction {
-    pub encodable: EncodableTransaction,
-    pub gas_limit: Option<u64>,
-    pub max_priority_fee_per_gas: Option<u128>,
-    pub max_fee_per_gas: Option<u128>,
-}
-#[bon]
-impl Transaction {
-    #[builder]
-    pub fn builder(
-        creates: Option<Vec<Create>>,
-        updates: Option<Vec<Update>>,
-        deletes: Option<Vec<Delete>>,
-        extensions: Option<Vec<Extend>>,
-        gas_limit: Option<u64>,
-        max_priority_fee_per_gas: Option<u128>,
-        max_fee_per_gas: Option<u128>,
-    ) -> Self {
-        Self {
-            encodable: EncodableTransaction {
-                creates: creates.unwrap_or_default(),
-                updates: updates.unwrap_or_default(),
-                deletes: deletes.unwrap_or_default(),
-                extensions: extensions.unwrap_or_default(),
-            },
-            gas_limit,
-            max_priority_fee_per_gas,
-            max_fee_per_gas,
-        }
+/// Extension trait for adding storage functionality to [`alloy::network::TransactionBuilder`].
+pub trait StorageTransactionBuilder<N: Network>:
+    Deref<Target = N::TransactionRequest> + DerefMut + Sized
+{
+    /// The address of the storage contract.
+    const STORAGE_ADDRESS: Address;
+
+    /// Access the underlying payload
+    fn payload(&self) -> &StoragePayload;
+    fn payload_mut(&mut self) -> &mut StoragePayload;
+
+    /// Add a list of [`Create`] operations to the encodable transaction inputs.
+    fn create_entities(mut self, creates: Vec<Create>) -> Self {
+        self.payload_mut().creates = creates;
+        self
+    }
+
+    /// Add a list of [`Update`] operations to the encodable transaction inputs.
+    fn update_entities(mut self, updates: Vec<Update>) -> Self {
+        self.payload_mut().updates = updates;
+        self
+    }
+
+    /// Add a list of [`Delete`] operations to the encodable transaction inputs.
+    fn delete_entities(mut self, deletes: Vec<Delete>) -> Self {
+        self.payload_mut().deletes = deletes;
+        self
+    }
+
+    /// Add a list of [`Extend`] operations to the encodable transaction inputs.
+    fn extend_entities(mut self, extensions: Vec<Extend>) -> Self {
+        self.payload_mut().extensions = extensions;
+        self
+    }
+
+    /// Add a list of [`Chown`] operations to the encodable transaction inputs.
+    fn transfer_entities(mut self, transfers: Vec<Chown>) -> Self {
+        self.payload_mut().transfers = transfers;
+        self
+    }
+
+    /// Encode the storage payload and set the transaction input and [`alloy::primitives::TxKind`],
+    /// returning the inner [`alloy::network::Network::TransactionRequest`].
+    fn into_request(mut self) -> N::TransactionRequest {
+        let payload = self.payload();
+        let mut input = Vec::with_capacity(payload.len());
+        payload.encode(&mut input);
+
+        self.set_kind(TxKind::Call(Self::STORAGE_ADDRESS));
+        self.set_input(input);
+
+        self.to_owned()
     }
 }
-impl Transaction {
-    /// Returns the RLP-encoded bytes of the transaction.
-    /// Useful for submitting the transaction to the chain.
-    pub fn encoded(&self) -> Vec<u8> {
-        let mut encoded = Vec::new();
-        self.encodable.encode(&mut encoded);
-        encoded
+
+/// The underlying network transaction to be sent and an encodable payload
+/// containing storage operations. This type implements [`StorageTransactionBuilder`]
+/// and is intended to be used just as [`alloy::network::TransactionRequest`].
+pub struct StorageTransactionRequest<N: Network> {
+    payload: StoragePayload,
+    request: N::TransactionRequest,
+}
+impl<N: Network> Deref for StorageTransactionRequest<N> {
+    type Target = N::TransactionRequest;
+    fn deref(&self) -> &Self::Target {
+        &self.request
+    }
+}
+impl<N: Network> DerefMut for StorageTransactionRequest<N> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.request
+    }
+}
+impl<N: Network> Default for StorageTransactionRequest<N> {
+    fn default() -> Self {
+        let mut buf = Self {
+            payload: Default::default(),
+            request: Default::default(),
+        };
+        buf.set_kind(TxKind::Call(Self::STORAGE_ADDRESS));
+        buf
+    }
+}
+impl<N: Network> StorageTransactionBuilder<N> for StorageTransactionRequest<N> {
+    const STORAGE_ADDRESS: Address = crate::eth::STORAGE_ADDRESS;
+    fn payload(&self) -> &StoragePayload {
+        &self.payload
+    }
+    fn payload_mut(&mut self) -> &mut StoragePayload {
+        &mut self.payload
     }
 }
 
-/// A transaction that can be encoded in RLP
+/// An RLP encodable storage transaction payload containing storage operations
+/// to be executed on the network.
 #[derive(Debug, Clone, Default, RlpEncodable, RlpDecodable)]
-pub struct EncodableTransaction {
-    // TODO: Add chown
+pub struct StoragePayload {
     /// A list of [`Create`] operations.
     pub creates: Vec<Create>,
     /// A list of [`Update`] operations.
@@ -62,4 +116,67 @@ pub struct EncodableTransaction {
     pub deletes: Vec<Delete>,
     /// A list of [`Extend`] operations.
     pub extensions: Vec<Extend>,
+    /// A list of [`Chown`] operations.
+    pub transfers: Vec<Chown>,
+}
+impl StoragePayload {
+    pub fn is_empty(&self) -> bool {
+        self.creates.is_empty()
+            && self.updates.is_empty()
+            && self.deletes.is_empty()
+            && self.extensions.is_empty()
+            && self.transfers.is_empty()
+    }
+    pub fn len(&self) -> usize {
+        self.creates.len()
+            + self.updates.len()
+            + self.deletes.len()
+            + self.extensions.len()
+            + self.transfers.len()
+    }
+}
+
+impl<N: Network> From<Vec<Create>> for StorageTransactionRequest<N> {
+    fn from(creates: Vec<Create>) -> Self {
+        StorageTransactionRequest {
+            payload: StoragePayload {
+                creates,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+}
+impl<N: Network> From<Vec<Update>> for StorageTransactionRequest<N> {
+    fn from(updates: Vec<Update>) -> Self {
+        StorageTransactionRequest {
+            payload: StoragePayload {
+                updates,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+}
+impl<N: Network> From<Vec<Delete>> for StorageTransactionRequest<N> {
+    fn from(deletes: Vec<Delete>) -> Self {
+        StorageTransactionRequest {
+            payload: StoragePayload {
+                deletes,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+}
+impl<N: Network> From<Vec<Extend>> for StorageTransactionRequest<N> {
+    fn from(extensions: Vec<Extend>) -> Self {
+        StorageTransactionRequest {
+            payload: StoragePayload {
+                extensions,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
 }
