@@ -5,7 +5,7 @@ use futures::StreamExt;
 use tracing::info;
 
 use arkiv_sdk::{
-    Address, Attribute, Client, PrivateKeySigner, RoClient, Url,
+    Address, Attribute, PrivateKeySigner, Url,
     events::EventsClient,
     tx::{
         ops::{create::Create, delete::Delete},

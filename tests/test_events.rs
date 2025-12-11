@@ -6,8 +6,9 @@ use std::time::Duration;
 use url::Url;
 
 use arkiv_sdk::{
-    entity::{create::Create, extend::Extend, update::Update},
+    client::ArkivProviderExt,
     events::{Event, EventsClient},
+    tx::ops::{create::Create, extend::Extend, update::Update},
 };
 use arkiv_test_utils::{ARKIV_WS_URL, get_client};
 
@@ -30,8 +31,15 @@ async fn test_event_listening() -> Result<()> {
         .btl(30)
         .build()
         .unwrap();
-    let entities = client.create_entities(vec![create]).await.unwrap();
-    let entity = entities[0].clone();
+    let receipt = client
+        .create_entities(vec![create])
+        .await
+        .unwrap()
+        .get_receipt()
+        .await
+        .unwrap();
+    let logs = receipt.logs();
+    let entity = logs[0].clone();
 
     // We fast-forward the stream to the event that we are expecting
     event_stream = Box::pin(event_stream.skip_while(move |event| {

@@ -4,16 +4,18 @@
 use alloy::{
     network::{Ethereum, Network},
     primitives::U256,
-    providers::{PendingTransactionBuilder, Provider},
+    providers::{DynProvider, PendingTransactionBuilder, Provider, ProviderBuilder},
     rpc::client::RpcCall,
+    signers::local::LocalSigner,
     transports::TransportResult,
 };
 
 use crate::{
-    entity::Entity,
+    EntityKey,
+    entity::{Entity, content_type::ContentType},
     rpc::{ArkivRpcMethod, BlockTiming, QueryOpts},
     tx::{
-        StorageTransactionBuilder,
+        StorageTransactionBuilder, StorageTransactionRequest,
         ops::{create::Create, delete::Delete, extend::Extend, update::Update},
     },
 };
@@ -100,3 +102,29 @@ pub trait ArkivProviderExt<N: Network>: Provider<N> {
 ///
 /// [`alloy::network` Documentation](https://github.com/alloy-rs/alloy/tree/f341fd655a2ae230adcefee3f39a55e7b87ab620/crates/network)
 impl<T: Provider<Ethereum>> ArkivProviderExt<Ethereum> for T {}
+
+#[tokio::test]
+async fn test_arkiv_provider() {
+    const PLAIN_TEXT: ContentType<&str> = "plain/text";
+
+    let local_signer = LocalSigner::random();
+    let client = ProviderBuilder::new()
+        .wallet(local_signer)
+        .connect_http("https://example.network")
+        .erased();
+    let tx = StorageTransactionRequest::default()
+        .create_entities([Create::builder()
+            .btl(5000)
+            .content_type(PLAIN_TEXT)
+            .payload(b"test")
+            .build()])
+        .update_entities([Update::builder()
+            .entity_key(EntityKey::default())
+            .btl(5000)
+            .content_type(PLAIN_TEXT)
+            .payload("test")
+            .build()])
+        .delete_entities(Delete::new(EntityKey::default()));
+
+    assert!(client.send_storage_transaction(tx).await.is_ok());
+}

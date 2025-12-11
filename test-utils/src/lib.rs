@@ -1,5 +1,6 @@
+use alloy::providers::{Provider, ProviderBuilder};
 use anyhow::Result;
-use arkiv_sdk::{Client, PrivateKeySigner};
+use arkiv_sdk::{DynProvider, PrivateKeySigner};
 use dirs::config_dir;
 use url::Url;
 
@@ -12,13 +13,16 @@ pub const TEST_TTL: u64 = 30;
 
 pub const TEST_KEYSTORE_PASSPHRASE: &str = "passphrase";
 
-pub fn get_client() -> Result<Client> {
+pub fn get_client() -> Result<DynProvider> {
     let keypath = config_dir()
         .ok_or_else(|| anyhow::anyhow!("Failed to get config directory"))?
         .join("arkiv")
         .join("wallet.json");
     let signer = PrivateKeySigner::decrypt_keystore(keypath, TEST_KEYSTORE_PASSPHRASE)?;
     let url = Url::parse(ARKIV_URL)?;
-    let client = Client::builder().wallet(signer).rpc_url(url).build();
+    let client = ProviderBuilder::new()
+        .wallet(signer)
+        .connect_http(url)
+        .erased();
     Ok(client)
 }

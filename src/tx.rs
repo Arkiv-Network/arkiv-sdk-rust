@@ -23,32 +23,32 @@ pub trait StorageTransactionBuilder<N: Network>:
     fn payload_mut(&mut self) -> &mut StoragePayload;
 
     /// Add a list of [`Create`] operations to the encodable transaction inputs.
-    fn create_entities(mut self, creates: Vec<Create>) -> Self {
-        self.payload_mut().creates = creates;
+    fn create_entities<C: Into<Vec<Create>>>(mut self, creates: C) -> Self {
+        self.payload_mut().creates = creates.into();
         self
     }
 
     /// Add a list of [`Update`] operations to the encodable transaction inputs.
-    fn update_entities(mut self, updates: Vec<Update>) -> Self {
-        self.payload_mut().updates = updates;
+    fn update_entities<U: Into<Vec<Update>>>(mut self, updates: U) -> Self {
+        self.payload_mut().updates = updates.into();
         self
     }
 
     /// Add a list of [`Delete`] operations to the encodable transaction inputs.
-    fn delete_entities(mut self, deletes: Vec<Delete>) -> Self {
-        self.payload_mut().deletes = deletes;
+    fn delete_entities<D: Into<Vec<Delete>>>(mut self, deletes: D) -> Self {
+        self.payload_mut().deletes = deletes.into();
         self
     }
 
     /// Add a list of [`Extend`] operations to the encodable transaction inputs.
-    fn extend_entities(mut self, extensions: Vec<Extend>) -> Self {
-        self.payload_mut().extensions = extensions;
+    fn extend_entities<E: Into<Vec<Extend>>>(mut self, extensions: E) -> Self {
+        self.payload_mut().extensions = extensions.into();
         self
     }
 
     /// Add a list of [`Chown`] operations to the encodable transaction inputs.
-    fn transfer_entities(mut self, transfers: Vec<Chown>) -> Self {
-        self.payload_mut().transfers = transfers;
+    fn transfer_entities<T: Into<Vec<Chown>>>(mut self, transfers: T) -> Self {
+        self.payload_mut().transfers = transfers.into();
         self
     }
 
