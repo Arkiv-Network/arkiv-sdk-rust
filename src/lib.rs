@@ -1,10 +1,11 @@
 #![doc = include_str!("../README.md")]
 
-pub mod client;
 pub mod entity;
 pub mod error;
 pub mod eth;
 pub mod events;
+pub mod network;
+pub mod providers;
 pub mod rpc;
 pub mod tx;
 pub mod utils;

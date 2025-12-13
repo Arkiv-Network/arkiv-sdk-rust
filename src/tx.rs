@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use alloy::{
-    network::{Network, TransactionBuilder},
+    network::{Ethereum, Network, TransactionBuilder},
     primitives::{Address, TxKind},
 };
 use alloy_rlp::{Encodable, RlpDecodable, RlpEncodable};
@@ -11,50 +11,52 @@ pub mod receipt;
 
 use ops::{chown::Chown, create::Create, delete::Delete, extend::Extend, update::Update};
 
+use crate::network::StorageNetwork;
+
 /// Extension trait for adding storage functionality to [`alloy::network::TransactionBuilder`].
-pub trait StorageTransactionBuilder<N: Network>:
-    Deref<Target = N::TransactionRequest> + DerefMut + Sized
+pub trait StorageTransactionBuilder<S: StorageNetwork>:
+    Default + Deref<Target = S::TransactionRequest> + DerefMut + Sized
 {
     /// The address of the storage contract.
     const STORAGE_ADDRESS: Address;
 
     /// Access the underlying payload
-    fn payload(&self) -> &StoragePayload;
-    fn payload_mut(&mut self) -> &mut StoragePayload;
+    fn payload(&self) -> &S::Payload;
+    fn payload_mut(&mut self) -> &mut S::Payload;
 
     /// Add a list of [`Create`] operations to the encodable transaction inputs.
-    fn create_entities<C: Into<Vec<Create>>>(mut self, creates: C) -> Self {
-        self.payload_mut().creates = creates.into();
+    fn create_entities(mut self, creates: Vec<S::Create>) -> Self {
+        self.payload_mut().with_creates(creates);
         self
     }
 
     /// Add a list of [`Update`] operations to the encodable transaction inputs.
-    fn update_entities<U: Into<Vec<Update>>>(mut self, updates: U) -> Self {
-        self.payload_mut().updates = updates.into();
+    fn update_entities(mut self, updates: Vec<S::Update>) -> Self {
+        self.payload_mut().with_updates(updates);
         self
     }
 
     /// Add a list of [`Delete`] operations to the encodable transaction inputs.
-    fn delete_entities<D: Into<Vec<Delete>>>(mut self, deletes: D) -> Self {
-        self.payload_mut().deletes = deletes.into();
+    fn delete_entities(mut self, deletes: Vec<S::Delete>) -> Self {
+        self.payload_mut().with_deletes(deletes);
         self
     }
 
     /// Add a list of [`Extend`] operations to the encodable transaction inputs.
-    fn extend_entities<E: Into<Vec<Extend>>>(mut self, extensions: E) -> Self {
-        self.payload_mut().extensions = extensions.into();
+    fn extend_entities(mut self, extensions: Vec<S::Extend>) -> Self {
+        self.payload_mut().with_extensions(extensions);
         self
     }
 
     /// Add a list of [`Chown`] operations to the encodable transaction inputs.
-    fn transfer_entities<T: Into<Vec<Chown>>>(mut self, transfers: T) -> Self {
-        self.payload_mut().transfers = transfers.into();
+    fn transfer_entities(mut self, transfers: Vec<S::Chown>) -> Self {
+        self.payload_mut().with_transfers(transfers);
         self
     }
 
     /// Encode the storage payload and set the transaction input and [`alloy::primitives::TxKind`],
     /// returning the inner [`alloy::network::Network::TransactionRequest`].
-    fn into_request(mut self) -> N::TransactionRequest {
+    fn into_request(mut self) -> S::TransactionRequest {
         let payload = self.payload();
         let mut input = Vec::with_capacity(payload.len());
         payload.encode(&mut input);
@@ -69,22 +71,22 @@ pub trait StorageTransactionBuilder<N: Network>:
 /// The underlying network transaction to be sent and an encodable payload
 /// containing storage operations. This type implements [`StorageTransactionBuilder`]
 /// and is intended to be used just as [`alloy::network::TransactionRequest`].
-pub struct StorageTransactionRequest<N: Network> {
-    payload: StoragePayload,
-    request: N::TransactionRequest,
+pub struct StorageTransactionRequest<S: StorageNetwork> {
+    payload: S::Payload,
+    request: <S as Network>::TransactionRequest,
 }
-impl<N: Network> Deref for StorageTransactionRequest<N> {
-    type Target = N::TransactionRequest;
+impl<S: StorageNetwork> Deref for StorageTransactionRequest<S> {
+    type Target = <S as Network>::TransactionRequest;
     fn deref(&self) -> &Self::Target {
         &self.request
     }
 }
-impl<N: Network> DerefMut for StorageTransactionRequest<N> {
+impl<S: StorageNetwork> DerefMut for StorageTransactionRequest<S> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.request
     }
 }
-impl<N: Network> Default for StorageTransactionRequest<N> {
+impl<S: StorageNetwork> Default for StorageTransactionRequest<S> {
     fn default() -> Self {
         let mut buf = Self {
             payload: Default::default(),
@@ -94,12 +96,12 @@ impl<N: Network> Default for StorageTransactionRequest<N> {
         buf
     }
 }
-impl<N: Network> StorageTransactionBuilder<N> for StorageTransactionRequest<N> {
+impl<S: StorageNetwork> StorageTransactionBuilder<S> for StorageTransactionRequest<S> {
     const STORAGE_ADDRESS: Address = crate::eth::STORAGE_ADDRESS;
-    fn payload(&self) -> &StoragePayload {
+    fn payload(&self) -> &S::Payload {
         &self.payload
     }
-    fn payload_mut(&mut self) -> &mut StoragePayload {
+    fn payload_mut(&mut self) -> &mut S::Payload {
         &mut self.payload
     }
 }
@@ -119,64 +121,47 @@ pub struct StoragePayload {
     /// A list of [`Chown`] operations.
     pub transfers: Vec<Chown>,
 }
-impl StoragePayload {
-    pub fn is_empty(&self) -> bool {
+
+/// Update a mutable reference to a [`StorageNetwork`] payload.
+///
+/// This trait is necessary for mainitaining dynamic compatibility.
+pub trait PayloadBuilder<S: StorageNetwork> {
+    fn is_empty(&self) -> bool;
+    fn len(&self) -> usize;
+    fn with_creates(&mut self, creates: Vec<S::Create>);
+    fn with_updates(&mut self, updates: Vec<S::Update>);
+    fn with_deletes(&mut self, deletes: Vec<S::Delete>);
+    fn with_extensions(&mut self, extensions: Vec<S::Extend>);
+    fn with_transfers(&mut self, transfers: Vec<S::Chown>);
+}
+impl PayloadBuilder<Ethereum> for StoragePayload {
+    fn is_empty(&self) -> bool {
         self.creates.is_empty()
             && self.updates.is_empty()
             && self.deletes.is_empty()
             && self.extensions.is_empty()
             && self.transfers.is_empty()
     }
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         self.creates.len()
             + self.updates.len()
             + self.deletes.len()
             + self.extensions.len()
             + self.transfers.len()
     }
-}
-
-impl<N: Network> From<Vec<Create>> for StorageTransactionRequest<N> {
-    fn from(creates: Vec<Create>) -> Self {
-        StorageTransactionRequest {
-            payload: StoragePayload {
-                creates,
-                ..Default::default()
-            },
-            ..Default::default()
-        }
+    fn with_creates(&mut self, creates: Vec<<Ethereum as StorageNetwork>::Create>) {
+        self.creates = creates;
     }
-}
-impl<N: Network> From<Vec<Update>> for StorageTransactionRequest<N> {
-    fn from(updates: Vec<Update>) -> Self {
-        StorageTransactionRequest {
-            payload: StoragePayload {
-                updates,
-                ..Default::default()
-            },
-            ..Default::default()
-        }
+    fn with_updates(&mut self, updates: Vec<<Ethereum as StorageNetwork>::Update>) {
+        self.updates = updates;
     }
-}
-impl<N: Network> From<Vec<Delete>> for StorageTransactionRequest<N> {
-    fn from(deletes: Vec<Delete>) -> Self {
-        StorageTransactionRequest {
-            payload: StoragePayload {
-                deletes,
-                ..Default::default()
-            },
-            ..Default::default()
-        }
+    fn with_deletes(&mut self, deletes: Vec<<Ethereum as StorageNetwork>::Delete>) {
+        self.deletes = deletes;
     }
-}
-impl<N: Network> From<Vec<Extend>> for StorageTransactionRequest<N> {
-    fn from(extensions: Vec<Extend>) -> Self {
-        StorageTransactionRequest {
-            payload: StoragePayload {
-                extensions,
-                ..Default::default()
-            },
-            ..Default::default()
-        }
+    fn with_extensions(&mut self, extensions: Vec<<Ethereum as StorageNetwork>::Extend>) {
+        self.extensions = extensions;
+    }
+    fn with_transfers(&mut self, transfers: Vec<<Ethereum as StorageNetwork>::Chown>) {
+        self.transfers = transfers;
     }
 }

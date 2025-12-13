@@ -893,6 +893,7 @@ dependencies = [
  "alloy-rlp",
  "anyhow",
  "arkiv-test-utils",
+ "async-trait",
  "base64",
  "bigdecimal",
  "bincode",

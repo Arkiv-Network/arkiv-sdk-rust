@@ -6,7 +6,7 @@ use std::time::Duration;
 use url::Url;
 
 use arkiv_sdk::{
-    client::ArkivProviderExt,
+    client::StorageProvider,
     events::{Event, EventsClient},
     tx::ops::{create::Create, extend::Extend, update::Update},
 };

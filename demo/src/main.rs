@@ -5,7 +5,7 @@ use futures::StreamExt;
 use tracing::info;
 
 use arkiv_sdk::{
-    Address, Attribute, PrivateKeySigner, Url,
+    Address, Attribute, DynProvider, PrivateKeySigner, Url,
     events::EventsClient,
     tx::{
         ops::{create::Create, delete::Delete},
@@ -13,7 +13,7 @@ use arkiv_sdk::{
     },
 };
 
-async fn log_num_of_entities_owned(client: &RoClient, owner_address: Address) {
+async fn log_num_of_entities_owned(client: &DynProvider, owner_address: Address) {
     let n = client
         .get_entities_of_owner(owner_address)
         .await
