@@ -102,7 +102,7 @@ mod test {
     };
 
     use crate::{
-        DynStorageProvider, EntityKey,
+        EntityKey,
         entity::content_type::ContentType,
         providers::StorageProvider,
         tx::{

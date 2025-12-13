@@ -37,12 +37,9 @@ mod serialization_tests {
     use expect_test::expect;
     use hex;
 
-    use crate::entity::{
-        create::Create,
-        extend::Extend,
-        tx::Transaction,
-        types::attribute::{NumericAttribute, StringAttribute, WithAttribute},
-        update::Update,
+    use crate::{
+        EntityKey,
+        tx::ops::{create::Create, extend::Extend, update::Update},
     };
 
     pub fn expect_hex(hex: &str, expect: expect_test::Expect) {

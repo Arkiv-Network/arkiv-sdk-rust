@@ -8,6 +8,7 @@ pub mod delete;
 pub mod extend;
 pub mod update;
 
+use chown::ChownReceipt;
 use create::CreateReceipt;
 use delete::DeleteReceipt;
 use extend::ExtendReceipt;
@@ -21,6 +22,7 @@ pub struct TransactionReceipt {
     pub updated: Vec<UpdateReceipt>,
     pub deleted: Vec<DeleteReceipt>,
     pub extended: Vec<ExtendReceipt>,
+    pub transferred: Vec<ChownReceipt>,
 }
 
 impl TryFrom<RawTransactionReceipt> for TransactionReceipt {
@@ -56,6 +58,9 @@ impl TryFrom<RawTransactionReceipt> for TransactionReceipt {
                     }
                     ArkivAbi::ArkivAbiEvents::EntityExtended(data) => {
                         receipt.extended.push(ExtendReceipt::from(data))
+                    }
+                    ArkivAbi::ArkivAbiEvents::EntityTransferred(data) => {
+                        receipt.transferred.push(ChownReceipt::from(data))
                     }
                 }
                 Ok(())

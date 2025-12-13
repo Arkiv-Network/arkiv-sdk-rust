@@ -26,6 +26,12 @@ alloy::sol! {
             uint256 oldExpirationBlock,
             uint256 newExpirationBlock
         );
+
+        event EntityTransferred(
+            uint256 indexed entityKey,
+            address oldOwner,
+            address newOwner,
+        );
     }
 }
 

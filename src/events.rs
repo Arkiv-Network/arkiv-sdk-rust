@@ -2,6 +2,7 @@
 //! Contains types and utilities for working with Arkiv events.
 
 use alloy::eips::BlockNumberOrTag;
+use alloy::primitives::Address;
 use alloy::providers::{DynProvider, Provider, ProviderBuilder, WsConnect};
 use alloy::rpc::types::Log;
 use alloy::rpc::types::eth::Filter;
@@ -67,6 +68,13 @@ pub enum Event {
         /// The transaction hash that triggered the event
         transaction_hash: EntityKey,
     },
+    EntityTransferred {
+        entity_id: EntityKey,
+        old_owner: Address,
+        new_owner: Address,
+        block_number: u64,
+        transaction_hash: EntityKey,
+    },
 }
 
 impl TryFrom<Log> for Event {
@@ -104,6 +112,13 @@ impl TryFrom<Log> for Event {
                 entity_id: data.entityKey.into(),
                 old_expiration_block: data.oldExpirationBlock.try_into().unwrap_or_default(),
                 new_expiration_block: data.newExpirationBlock.try_into().unwrap_or_default(),
+                block_number,
+                transaction_hash,
+            }),
+            ArkivAbi::ArkivAbiEvents::EntityTransferred(data) => Ok(Event::EntityTransferred {
+                entity_id: data.entityKey.into(),
+                old_owner: data.oldOwner,
+                new_owner: data.newOwner,
                 block_number,
                 transaction_hash,
             }),
