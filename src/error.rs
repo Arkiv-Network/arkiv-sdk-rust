@@ -1,3 +1,4 @@
+// TODO: Refactor error types in general
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error, PartialEq, Clone)]

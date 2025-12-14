@@ -1,5 +1,9 @@
 //! The storage contract ABI for the Arkiv network. Contains bindings to event data used in decoding event logs and receipts.
 
+mod error;
+
+pub use error::Error;
+
 /// The Ethereum address of the Arkiv storage contract. All entity-related transactions are sent to this address.
 ///
 /// This address does not need to be provided when sending a transaction. The [`crate::tx::StorageTransactionBuilder`]
@@ -49,15 +53,4 @@ alloy::sol! {
             address newOwner,
         );
     }
-}
-
-#[derive(Debug, Clone, PartialEq, thiserror::Error)]
-pub enum Error {
-    #[error("Transaction `{}` failed: {:?}", receipt.transaction_hash, receipt)]
-    BadTransactionStatus {
-        receipt: Box<alloy::rpc::types::TransactionReceipt>,
-    },
-
-    #[error(transparent)]
-    AbiError(#[from] alloy::sol_types::Error),
 }
