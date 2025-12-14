@@ -4,6 +4,12 @@ pub mod delete;
 pub mod extend;
 pub mod update;
 
+pub use chown::Chown;
+pub use create::{Create, CreateBuilder};
+pub use delete::Delete;
+pub use extend::Extend;
+pub use update::{Update, UpdateBuilder};
+
 /// A trait for attaching attributes to a transaction's operation.
 ///
 /// Implementors provide distinct behavior depending on the wrapper type used

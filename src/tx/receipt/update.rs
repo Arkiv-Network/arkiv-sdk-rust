@@ -1,7 +1,7 @@
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use crate::{EntityKey, eth::ArkivAbi::EntityUpdated};
+use crate::{EntityKey, contract::ArkivAbi::EntityUpdated};
 
 /// Data returned by the network after updating an [`crate::entity::Entity`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, RlpEncodable, RlpDecodable, Serialize, Deserialize)]

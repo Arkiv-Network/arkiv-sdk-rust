@@ -7,9 +7,9 @@ use crate::{
     entity::{
         attribute::{NumericAttribute, StringAttribute},
         btl::BlocksToLive,
-        content_type::ContentType,
+        content_type::{ContentType, Error as ContentTypeError},
     },
-    error::ValidationError,
+    error::{Error as ArkivError, Result as ArkivResult},
     tx::ops::WithAttribute,
 };
 
@@ -36,7 +36,7 @@ impl Update {
     where
         K: Into<EntityKey>,
         B: Into<BlocksToLive>,
-        C: TryInto<ContentType<String>, Error = ValidationError>,
+        C: TryInto<ContentType<String>, Error = ContentTypeError>,
         P: Into<Bytes>,
     {
         UpdateBuilder::new()
@@ -72,7 +72,7 @@ pub struct UpdateBuilder<K, B, C, P>
 where
     K: Into<EntityKey>,
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = ValidationError>,
+    C: TryInto<ContentType<String>, Error = ContentTypeError>,
     P: Into<Bytes>,
 {
     entity_key: Option<K>,
@@ -88,7 +88,7 @@ impl<K, B, C, P> Default for UpdateBuilder<K, B, C, P>
 where
     K: Into<EntityKey>,
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = ValidationError>,
+    C: TryInto<ContentType<String>, Error = ContentTypeError>,
     P: Into<Bytes>,
 {
     fn default() -> Self {
@@ -107,7 +107,7 @@ impl<K, B, C, P> UpdateBuilder<K, B, C, P>
 where
     K: Into<EntityKey>,
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = ValidationError>,
+    C: TryInto<ContentType<String>, Error = ContentTypeError>,
     P: Into<Bytes>,
 {
     pub fn new() -> Self {
@@ -134,19 +134,19 @@ where
         self
     }
 
-    pub fn build(self) -> Result<Update, ValidationError> {
+    pub fn build(self) -> ArkivResult<Update> {
         let Some(entity_key) = self.entity_key.map(|key| key.into()) else {
-            return Err(ValidationError::MissingEntityKey);
+            return Err(ArkivError::MissingEntityKey);
         };
         let Some(btl) = self.btl.map(|btl| btl.into()) else {
-            return Err(ValidationError::MissingBtl);
+            return Err(ArkivError::MissingBtl);
         };
         let Some(content_type) = self.content_type else {
-            return Err(ValidationError::MissingContentType);
+            return Err(ArkivError::MissingContentType);
         };
         let content_type = content_type.try_into()?;
         let Some(payload) = self.payload.map(Into::<Bytes>::into) else {
-            return Err(ValidationError::MissingPayload);
+            return Err(ArkivError::MissingPayload);
         };
 
         Ok(Update {
@@ -163,7 +163,7 @@ impl<K, B, C, P> WithAttribute<StringAttribute> for UpdateBuilder<K, B, C, P>
 where
     K: Into<EntityKey>,
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = ValidationError>,
+    C: TryInto<ContentType<String>, Error = ContentTypeError>,
     P: Into<Bytes>,
 {
     fn with_attribute(mut self, attribute: StringAttribute) -> Self {
@@ -182,7 +182,7 @@ impl<K, B, C, P> WithAttribute<NumericAttribute> for UpdateBuilder<K, B, C, P>
 where
     K: Into<EntityKey>,
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = ValidationError>,
+    C: TryInto<ContentType<String>, Error = ContentTypeError>,
     P: Into<Bytes>,
 {
     fn with_attribute(mut self, attribute: NumericAttribute) -> Self {

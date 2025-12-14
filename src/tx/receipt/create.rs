@@ -1,7 +1,7 @@
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use crate::{EntityKey, eth::ArkivAbi::EntityCreated};
+use crate::{EntityKey, contract::ArkivAbi::EntityCreated};
 
 /// Represents the result of creating an entity.
 /// Contains the entity key and its expiration block.

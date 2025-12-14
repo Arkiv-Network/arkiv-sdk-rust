@@ -6,9 +6,9 @@ use crate::{
     entity::{
         attribute::{NumericAttribute, StringAttribute},
         btl::BlocksToLive,
-        content_type::ContentType,
+        content_type::{ContentType, Error as ContentTypeError},
     },
-    error::ValidationError,
+    error::{Error as ArkivError, Result as ArkivResult},
     tx::ops::WithAttribute,
 };
 
@@ -34,7 +34,7 @@ impl Create {
     pub fn builder<B, C, P>() -> CreateBuilder<B, C, P>
     where
         B: Into<BlocksToLive>,
-        C: TryInto<ContentType<String>, Error = ValidationError>,
+        C: TryInto<ContentType<String>, Error = ContentTypeError>,
         P: Into<Bytes>,
     {
         CreateBuilder::new()
@@ -71,7 +71,7 @@ impl Create {
 pub struct CreateBuilder<B, C, P>
 where
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = ValidationError>,
+    C: TryInto<ContentType<String>, Error = ContentTypeError>,
     P: Into<Bytes>,
 {
     /// The blocks-to-live (BTL) for the entity.
@@ -89,7 +89,7 @@ where
 impl<B, C, P> Default for CreateBuilder<B, C, P>
 where
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = ValidationError>,
+    C: TryInto<ContentType<String>, Error = ContentTypeError>,
     P: Into<Bytes>,
 {
     fn default() -> Self {
@@ -105,7 +105,7 @@ where
 impl<B, C, P> CreateBuilder<B, C, P>
 where
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = ValidationError>,
+    C: TryInto<ContentType<String>, Error = ContentTypeError>,
     P: Into<Bytes>,
 {
     pub fn new() -> Self {
@@ -127,16 +127,16 @@ where
         self
     }
 
-    pub fn build(self) -> Result<Create, ValidationError> {
+    pub fn build(self) -> ArkivResult<Create> {
         let Some(btl) = self.btl.map(|btl| btl.into()) else {
-            return Err(ValidationError::MissingBtl);
+            return Err(ArkivError::MissingBtl);
         };
         let Some(content_type) = self.content_type else {
-            return Err(ValidationError::MissingContentType);
+            return Err(ArkivError::MissingContentType);
         };
         let content_type = content_type.try_into()?;
         let Some(payload) = self.payload.map(Into::<Bytes>::into) else {
-            return Err(ValidationError::MissingPayload);
+            return Err(ArkivError::MissingPayload);
         };
 
         Ok(Create {
@@ -151,7 +151,7 @@ where
 impl<B, C, P> WithAttribute<StringAttribute> for CreateBuilder<B, C, P>
 where
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = ValidationError>,
+    C: TryInto<ContentType<String>, Error = ContentTypeError>,
     P: Into<Bytes>,
 {
     fn with_attribute(mut self, attribute: StringAttribute) -> Self {
@@ -169,7 +169,7 @@ where
 impl<B, C, P> WithAttribute<NumericAttribute> for CreateBuilder<B, C, P>
 where
     B: Into<BlocksToLive>,
-    C: TryInto<ContentType<String>, Error = ValidationError>,
+    C: TryInto<ContentType<String>, Error = ContentTypeError>,
     P: Into<Bytes>,
 {
     fn with_attribute(mut self, attribute: NumericAttribute) -> Self {
@@ -187,7 +187,7 @@ where
 
 #[test]
 fn test_create_builder() {
-    use crate::entity::types::attribute::Attribute;
+    use crate::entity::attribute::Attribute;
 
     const CONTENT_TYPE: ContentType<&str> =
         ContentType::new("application/json;mode=debug;version=1");

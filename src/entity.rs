@@ -8,10 +8,9 @@ pub mod attribute;
 pub mod btl;
 pub mod content_type;
 
-use crate::entity::{
-    attribute::{NumericAttribute, StringAttribute},
-    btl::BlocksToLive,
-};
+pub use attribute::{Attribute, NumericAttribute, StringAttribute};
+pub use btl::BlocksToLive;
+pub use content_type::ContentType;
 
 /// A type alias for the hash used to identify entities in GolemBase.
 pub type EntityKey = alloy::primitives::B256;
@@ -37,10 +36,7 @@ mod serialization_tests {
     use expect_test::expect;
     use hex;
 
-    use crate::{
-        EntityKey,
-        tx::ops::{create::Create, extend::Extend, update::Update},
-    };
+    use crate::tx::ops::{create::Create, extend::Extend, update::Update};
 
     pub fn expect_hex(hex: &str, expect: expect_test::Expect) {
         expect.assert_eq(hex);

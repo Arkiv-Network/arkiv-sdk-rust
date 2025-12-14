@@ -1,20 +1,23 @@
 //! Module for event handling.
 //! Contains types and utilities for working with Arkiv events.
 
-use alloy::eips::BlockNumberOrTag;
-use alloy::primitives::Address;
-use alloy::providers::{DynProvider, Provider, ProviderBuilder, WsConnect};
-use alloy::rpc::types::Log;
-use alloy::rpc::types::eth::Filter;
-use alloy::sol_types::{SolEvent, SolEventInterface};
-use alloy::transports::http::reqwest::Url;
-use anyhow::Result;
-use futures::{Stream, StreamExt};
-use std::convert::TryFrom;
-use std::pin::Pin;
+use std::{convert::TryFrom, pin::Pin};
 
-use crate::entity::EntityKey;
-use crate::eth::{self, ArkivAbi};
+use alloy::{
+    eips::BlockNumberOrTag,
+    primitives::Address,
+    providers::{DynProvider, Provider, ProviderBuilder, WsConnect},
+    rpc::types::Log,
+    rpc::types::eth::Filter,
+    sol_types::{SolEvent, SolEventInterface},
+    transports::http::reqwest::Url,
+};
+use futures::{Stream, StreamExt};
+
+use crate::{
+    contract::{self, ArkivAbi},
+    entity::EntityKey,
+};
 
 /// Represents a Arkiv event parsed from the blockchain log.
 /// Used to distinguish between entity creation, update, and removal events.
@@ -69,6 +72,7 @@ pub enum Event {
         transaction_hash: EntityKey,
     },
     EntityTransferred {
+        // TODO: Add docstrings
         entity_id: EntityKey,
         old_owner: Address,
         new_owner: Address,
@@ -78,11 +82,12 @@ pub enum Event {
 }
 
 impl TryFrom<Log> for Event {
+    // TODO: Remove anyhow
     type Error = anyhow::Error;
 
     /// Attempts to parse a blockchain log into a `Event`.
     /// Returns an error if required fields are missing or the event type is unknown.
-    fn try_from(log: Log) -> Result<Self> {
+    fn try_from(log: Log) -> anyhow::Result<Self> {
         let block_number = log
             .block_number
             .ok_or_else(|| anyhow::anyhow!("Missing block number"))?;
@@ -172,7 +177,7 @@ impl EventsClient {
     /// Creates a filter for Arkiv events, specifying the contract address and event signatures.
     fn create_event_filter(&self, block: BlockNumberOrTag) -> Filter {
         Filter::new()
-            .address(eth::STORAGE_ADDRESS)
+            .address(contract::STORAGE_ADDRESS)
             .from_block(block)
             .events(vec![
                 ArkivAbi::EntityCreated::SIGNATURE,

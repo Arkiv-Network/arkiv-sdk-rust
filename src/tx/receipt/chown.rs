@@ -2,7 +2,7 @@ use alloy::primitives::Address;
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use crate::{EntityKey, eth::ArkivAbi::EntityTransferred};
+use crate::{EntityKey, contract::ArkivAbi::EntityTransferred};
 
 /// Represents the result of changing ownership of an entity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, RlpEncodable, RlpDecodable, Serialize, Deserialize)]

@@ -1,7 +1,7 @@
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use crate::{EntityKey, eth::ArkivAbi::EntityDeleted};
+use crate::{EntityKey, contract::ArkivAbi::EntityDeleted};
 
 /// Data returned by the network after deleting an entity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, RlpEncodable, RlpDecodable, Serialize, Deserialize)]

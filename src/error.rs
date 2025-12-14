@@ -1,5 +1,7 @@
-#[derive(Debug, thiserror::Error, PartialEq, Eq, Clone)]
-pub enum ValidationError {
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, thiserror::Error, PartialEq, Clone)]
+pub enum Error {
     #[error(transparent)]
     ContentType(#[from] crate::entity::content_type::Error),
 
@@ -17,4 +19,7 @@ pub enum ValidationError {
 
     #[error("Missing Payload")]
     MissingPayload,
+
+    #[error(transparent)]
+    ContractError(#[from] crate::contract::Error),
 }

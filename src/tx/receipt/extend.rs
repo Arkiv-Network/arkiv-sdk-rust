@@ -1,7 +1,7 @@
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use crate::{EntityKey, eth::ArkivAbi::EntityExtended};
+use crate::{EntityKey, contract::ArkivAbi::EntityExtended};
 
 /// A receipt returned by the network from a [`crate::tx::Transaction`] containing an [`crate::tx::ops::Extend`] operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, RlpEncodable, RlpDecodable, Serialize, Deserialize)]

@@ -39,12 +39,12 @@ impl ArkivRpcMethod {
 impl std::ops::Deref for ArkivRpcMethod {
     type Target = str;
     fn deref(&self) -> &Self::Target {
-        &self.as_str()
+        self.as_str()
     }
 }
 impl From<ArkivRpcMethod> for std::borrow::Cow<'static, str> {
     fn from(value: ArkivRpcMethod) -> Self {
-        value.into()
+        value.as_str().into()
     }
 }
 

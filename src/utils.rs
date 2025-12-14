@@ -1,9 +1,10 @@
 //! Module with utility functions.
 //! Includes helpers for encoding, decoding, and other common tasks.
 
+use std::str::FromStr;
+
 use alloy::primitives::U256;
 use bigdecimal::{BigDecimal, ToPrimitive};
-use std::str::FromStr;
 
 /// Converts an ETH amount to wei as a `U256`.
 /// Accepts a `BigDecimal` ETH value and returns the equivalent amount in wei as a `U256`.

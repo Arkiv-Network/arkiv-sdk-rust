@@ -6,12 +6,15 @@ use alloy::{
 };
 use alloy_rlp::{Encodable, RlpDecodable, RlpEncodable};
 
+use crate::network::StorageNetwork;
+
 pub mod ops;
 pub mod receipt;
 
-use ops::{chown::Chown, create::Create, delete::Delete, extend::Extend, update::Update};
-
-use crate::network::StorageNetwork;
+use ops::{Chown, Create, Delete, Extend, Update};
+pub use receipt::{
+    ChownReceipt, CreateReceipt, DeleteReceipt, ExtendReceipt, TransactionReceipt, UpdateReceipt,
+};
 
 /// Extension trait for adding storage functionality to [`alloy::network::TransactionBuilder`].
 pub trait StorageTransactionBuilder<S: StorageNetwork>:
@@ -97,7 +100,8 @@ impl<S: StorageNetwork> Default for StorageTransactionRequest<S> {
     }
 }
 impl<S: StorageNetwork> StorageTransactionBuilder<S> for StorageTransactionRequest<S> {
-    const STORAGE_ADDRESS: Address = crate::eth::STORAGE_ADDRESS;
+    const STORAGE_ADDRESS: Address = crate::contract::STORAGE_ADDRESS;
+
     fn payload(&self) -> &S::Payload {
         &self.payload
     }

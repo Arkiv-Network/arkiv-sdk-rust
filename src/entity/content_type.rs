@@ -1,6 +1,9 @@
 // TODO: Move validation of mime into a separate type, only validate length of `ContentType`.
 // TODO: Test with content type from hypr/reqwest, add these examples to docs
-use crate::error::ValidationError;
+
+pub mod error;
+
+pub use error::Error;
 
 /// `ContentType` in this context refers to what is now called `MediaType`
 /// but is more commonly referred to as `MIME`. This type is intended to be
@@ -13,7 +16,7 @@ use crate::error::ValidationError;
 pub struct ContentType<Mime: Into<String> + AsRef<str>>(pub(crate) Mime);
 
 impl TryFrom<&str> for ContentType<String> {
-    type Error = ValidationError;
+    type Error = Error;
     /// Create a new `ContentType<S>` at runtime. This will return an error
     /// if validation fails. If the content type is known at compile time, it's
     /// recommended to use `ContentType::new_static` to get compile time validation.
@@ -22,7 +25,7 @@ impl TryFrom<&str> for ContentType<String> {
     }
 }
 impl TryFrom<String> for ContentType<String> {
-    type Error = ValidationError;
+    type Error = Error;
     /// Create a new `ContentType<S>` at runtime. This will return an error
     /// if validation fails. If the content type is known at compile time, it's
     /// recommended to use `ContentType::new_static` to get compile time validation.
@@ -33,7 +36,7 @@ impl TryFrom<String> for ContentType<String> {
 /// The blanket implementation of `TryFrom` is not enough to cover conversion of
 /// `ContentType<&str>` to `ContentType<String>` for compile time validated content types.
 impl TryFrom<ContentType<&str>> for ContentType<String> {
-    type Error = ValidationError;
+    type Error = Error;
     fn try_from(value: ContentType<&str>) -> Result<Self, Self::Error> {
         Ok(ContentType(value.0.into()))
     }
@@ -65,7 +68,7 @@ impl ContentType<&'static str> {
 impl<Mime: Into<String> + AsRef<str>> ContentType<Mime> {
     /// A reference to the underlying source string `S`.
     pub fn source(&self) -> &str {
-        &self.0.as_ref()
+        self.0.as_ref()
     }
 
     /// First checks the length, then iterates over the bytes of the string
@@ -203,67 +206,10 @@ impl<Mime: Into<String> + AsRef<str>> ContentType<Mime> {
     }
 
     /// Return an error if validation fails.
-    fn validate(self) -> Result<Self, ValidationError> {
-        Self::validate_source(self.source()).map_err(ValidationError::from)?;
+    fn validate(self) -> Result<Self, Error> {
+        Self::validate_source(self.source())?;
 
         Ok(self)
-    }
-}
-
-#[derive(Debug, thiserror::Error, PartialEq, Eq, Clone, Copy)]
-pub enum Error {
-    #[error("`ContentType` exceeds maximum length of `[char; 128]`.")]
-    LengthExceeded,
-
-    #[error("`ContentType` missing type-subtype separator: '/'.")]
-    MissingTypeSeparator,
-
-    #[error("`ContentType` missing type before type-subtype separator: '/'.")]
-    MissingType,
-
-    #[error("`ContentType` type contains an invalid character")]
-    InvalidTypeChar,
-
-    #[error("`ContentType` missing subtype after type-subtype separator: '/'.")]
-    MissingSubtype,
-
-    #[error("`ContentType` subtype contains an invalid character")]
-    InvalidSubtypeChar,
-
-    #[error("`ContentType` missing parameter separator, expected ';'.")]
-    MissingParameterSeparator,
-
-    #[error("`ContentType` invalid character in parameter key.")]
-    InvalidParameterKey,
-
-    #[error("`ContentType` invalid parameter key or missing '='.")]
-    MissingParameterAssignment,
-
-    #[error("`ContentType` invalid character or empty parameter value.")]
-    InvalidParameterValue,
-}
-impl Error {
-    const fn as_static_str(&self) -> &'static str {
-        match self {
-            Self::LengthExceeded => "`ContentType` exceeds maximum length of `[char; 128]`.",
-            Self::MissingTypeSeparator => "`ContentType` missing type-subtype separator: '/'.",
-            Self::MissingType => "`ContentType` missing type before type-subtype separator: '/'.",
-            Self::InvalidTypeChar => "`ContentType` type contains an invalid character",
-            Self::MissingSubtype => {
-                "`ContentType` missing subtype after type-subtype separator: '/'."
-            }
-            Self::InvalidSubtypeChar => "`ContentType` subtype contains an invalid character",
-            Self::MissingParameterSeparator => {
-                "`ContentType` invalid parameter separator, expected ';'."
-            }
-            Self::InvalidParameterKey => "`ContentType` invalid character in parameter key.",
-            Self::MissingParameterAssignment => {
-                "`ContentType` invalid parameter key or missing '='."
-            }
-            Self::InvalidParameterValue => {
-                "`ContentType` invalid character or empty parameter value."
-            }
-        }
     }
 }
 

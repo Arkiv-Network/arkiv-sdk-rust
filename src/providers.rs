@@ -45,6 +45,7 @@ pub trait StorageProvider<S: StorageNetwork>: Provider<S> + Send + Sync {
         self.client().request(ArkivRpcMethod::GetBlockTiming, ())
     }
 
+    /// Construct the default [`StorageNetwork::StorageTransactionRequest`].
     fn storage_transaction(&self) -> S::StorageTransactionRequest {
         Default::default()
     }
