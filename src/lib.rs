@@ -18,7 +18,7 @@ pub use tx::{ops, receipt};
 /// Re-export of commonly used types from `alloy`.
 pub use alloy::{
     primitives::{Address, keccak256},
-    providers::DynProvider,
+    providers::{DynProvider, Provider, ProviderBuilder},
     signers::{Signature, local::PrivateKeySigner},
     transports::http::reqwest::Url,
 };
