@@ -5,15 +5,19 @@ use alloy::{
     network::Ethereum,
     primitives::U256,
     providers::{PendingTransactionBuilder, Provider},
-    rpc::client::RpcCall,
+    rpc::{
+        client::RpcCall,
+        types::{Filter, Log},
+    },
     transports::TransportResult,
 };
+use futures::StreamExt;
 
 use crate::{
     entity::Entity,
     network::StorageNetwork,
     rpc::{ArkivRpcMethod, BlockTiming, QueryOpts},
-    tx::StorageTransactionBuilder,
+    tx::{PayloadBuilder, StorageTransactionBuilder},
 };
 
 /// Adds storage methods to a [`alloy::providers::Provider`].
@@ -59,7 +63,7 @@ pub trait StorageProvider<S: StorageNetwork>: Provider<S> + Send + Sync {
 
     async fn create_entities(
         &self,
-        creates: Vec<S::Create>,
+        creates: Vec<<<S::StorageTransactionRequest as StorageTransactionBuilder<S>>::Payload as PayloadBuilder<S>>::Create>,
     ) -> TransportResult<PendingTransactionBuilder<S>> {
         self.send_storage_transaction(self.storage_transaction().create_entities(creates))
             .await
@@ -67,7 +71,7 @@ pub trait StorageProvider<S: StorageNetwork>: Provider<S> + Send + Sync {
 
     async fn update_entities(
         &self,
-        updates: Vec<S::Update>,
+        updates: Vec<<<S::StorageTransactionRequest as StorageTransactionBuilder<S>>::Payload as PayloadBuilder<S>>::Update>,
     ) -> TransportResult<PendingTransactionBuilder<S>> {
         self.send_storage_transaction(self.storage_transaction().update_entities(updates))
             .await
@@ -75,7 +79,7 @@ pub trait StorageProvider<S: StorageNetwork>: Provider<S> + Send + Sync {
 
     async fn delete_entities(
         &self,
-        deletes: Vec<S::Delete>,
+        deletes: Vec<<<S::StorageTransactionRequest as StorageTransactionBuilder<S>>::Payload as PayloadBuilder<S>>::Delete>,
     ) -> TransportResult<PendingTransactionBuilder<S>> {
         self.send_storage_transaction(self.storage_transaction().delete_entities(deletes))
             .await
@@ -83,10 +87,32 @@ pub trait StorageProvider<S: StorageNetwork>: Provider<S> + Send + Sync {
 
     async fn extend_entities(
         &self,
-        extensions: Vec<S::Extend>,
+        extensions: Vec<<<S::StorageTransactionRequest as StorageTransactionBuilder<S>>::Payload as PayloadBuilder<S>>::Extend>,
     ) -> TransportResult<PendingTransactionBuilder<S>> {
         self.send_storage_transaction(self.storage_transaction().extend_entities(extensions))
             .await
+    }
+
+    /// A convenience method for subscribing to a stream of events from the [`StorageNetwork`]'s storage contract.
+    /// Provides a closure over a [`alloy::rpc::types::Filter`] with the [`crate::tx::StorageTransactionRequest::STORAGE_ADDRESS`] pre-populated
+    /// and attempts to convert the [`alloy::sol`] contract types into [`StorageNetwork::Event`].
+    ///
+    // #[cfg(feature = "pubsub")]
+    async fn subscribe_storage_events(
+        &self,
+        f: fn(Filter) -> Filter,
+    ) -> TransportResult<
+        futures::stream::Map<
+            alloy::pubsub::SubscriptionStream<Log>,
+            fn(Log) -> Result<S::StorageEvent, <S::StorageEvent as TryFrom<Log>>::Error>,
+        >,
+    > {
+        let subscription = self
+            .subscribe_logs(&f(
+                Filter::new().address(S::StorageTransactionRequest::STORAGE_ADDRESS)
+            ))
+            .await?;
+        Ok(subscription.into_stream().map(S::StorageEvent::try_from))
     }
 }
 

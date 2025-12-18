@@ -1,10 +1,11 @@
-use alloy::primitives::FixedBytes;
+use alloy::{primitives::FixedBytes, providers::Provider};
 use anyhow::Result;
 use bytes::Bytes;
 use serial_test::serial;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use arkiv_sdk::{
+    StorageProvider,
     entity::attribute::{NumericAttribute, StringAttribute},
     tx::ops::{WithAttribute, create::Create, delete::Delete, extend::Extend, update::Update},
 };
@@ -15,7 +16,7 @@ use arkiv_test_utils::get_client;
 async fn test_create_and_retrieve_entry() -> Result<()> {
     let client = get_client()?;
 
-    let start_block = client.get_current_block_number().await?;
+    let start_block = client.get_block_number().await?;
     tracing::info!("Starting at block: {start_block}");
 
     let test_payload = b"test payload".to_vec();

@@ -23,36 +23,53 @@ pub trait StorageTransactionBuilder<S: StorageNetwork>:
     /// The address of the storage contract.
     const STORAGE_ADDRESS: Address;
 
+    type Payload: Default + alloy_rlp::Encodable + PayloadBuilder<S> + Send;
+
     /// Access the underlying payload
-    fn payload(&self) -> &S::Payload;
-    fn payload_mut(&mut self) -> &mut S::Payload;
+    fn payload(&self) -> &Self::Payload;
+    fn payload_mut(&mut self) -> &mut Self::Payload;
 
     /// Add a list of [`Create`] operations to the encodable transaction inputs.
-    fn create_entities(mut self, creates: Vec<S::Create>) -> Self {
+    fn create_entities(
+        mut self,
+        creates: Vec<<Self::Payload as PayloadBuilder<S>>::Create>,
+    ) -> Self {
         self.payload_mut().with_creates(creates);
         self
     }
 
     /// Add a list of [`Update`] operations to the encodable transaction inputs.
-    fn update_entities(mut self, updates: Vec<S::Update>) -> Self {
+    fn update_entities(
+        mut self,
+        updates: Vec<<Self::Payload as PayloadBuilder<S>>::Update>,
+    ) -> Self {
         self.payload_mut().with_updates(updates);
         self
     }
 
     /// Add a list of [`Delete`] operations to the encodable transaction inputs.
-    fn delete_entities(mut self, deletes: Vec<S::Delete>) -> Self {
+    fn delete_entities(
+        mut self,
+        deletes: Vec<<Self::Payload as PayloadBuilder<S>>::Delete>,
+    ) -> Self {
         self.payload_mut().with_deletes(deletes);
         self
     }
 
     /// Add a list of [`Extend`] operations to the encodable transaction inputs.
-    fn extend_entities(mut self, extensions: Vec<S::Extend>) -> Self {
+    fn extend_entities(
+        mut self,
+        extensions: Vec<<Self::Payload as PayloadBuilder<S>>::Extend>,
+    ) -> Self {
         self.payload_mut().with_extensions(extensions);
         self
     }
 
     /// Add a list of [`Chown`] operations to the encodable transaction inputs.
-    fn transfer_entities(mut self, transfers: Vec<S::Chown>) -> Self {
+    fn transfer_entities(
+        mut self,
+        transfers: Vec<<Self::Payload as PayloadBuilder<S>>::Chown>,
+    ) -> Self {
         self.payload_mut().with_transfers(transfers);
         self
     }
@@ -75,7 +92,7 @@ pub trait StorageTransactionBuilder<S: StorageNetwork>:
 /// containing storage operations. This type implements [`StorageTransactionBuilder`]
 /// and is intended to be used just as [`alloy::network::TransactionRequest`].
 pub struct StorageTransactionRequest<S: StorageNetwork> {
-    payload: S::Payload,
+    payload: <S::StorageTransactionRequest as StorageTransactionBuilder<S>>::Payload,
     request: <S as Network>::TransactionRequest,
 }
 impl<S: StorageNetwork> Deref for StorageTransactionRequest<S> {
@@ -95,17 +112,22 @@ impl<S: StorageNetwork> Default for StorageTransactionRequest<S> {
             payload: Default::default(),
             request: Default::default(),
         };
-        buf.set_kind(TxKind::Call(Self::STORAGE_ADDRESS));
+        buf.set_kind(TxKind::Call(
+            <S::StorageTransactionRequest as StorageTransactionBuilder<S>>::STORAGE_ADDRESS,
+        ));
         buf
     }
 }
-impl<S: StorageNetwork> StorageTransactionBuilder<S> for StorageTransactionRequest<S> {
+/// Blanket impl of [`StorageTransactionBuilder`] for [`alloy::network::Ethereum`].
+impl StorageTransactionBuilder<Ethereum> for StorageTransactionRequest<Ethereum> {
     const STORAGE_ADDRESS: Address = crate::contract::STORAGE_ADDRESS;
 
-    fn payload(&self) -> &S::Payload {
+    type Payload = StoragePayload;
+
+    fn payload(&self) -> &Self::Payload {
         &self.payload
     }
-    fn payload_mut(&mut self) -> &mut S::Payload {
+    fn payload_mut(&mut self) -> &mut Self::Payload {
         &mut self.payload
     }
 }
@@ -126,19 +148,31 @@ pub struct StoragePayload {
     pub transfers: Vec<Chown>,
 }
 
-/// Update a mutable reference to a [`StorageNetwork`] payload.
+/// Update a mutable reference to a [`StorageTransactionBuilder`] payload.
 ///
 /// This trait is necessary for mainitaining dynamic compatibility.
 pub trait PayloadBuilder<S: StorageNetwork> {
+    type Create: Send;
+    type Update: Send;
+    type Delete: Send;
+    type Extend: Send;
+    type Chown: Send;
+
     fn is_empty(&self) -> bool;
     fn len(&self) -> usize;
-    fn with_creates(&mut self, creates: Vec<S::Create>);
-    fn with_updates(&mut self, updates: Vec<S::Update>);
-    fn with_deletes(&mut self, deletes: Vec<S::Delete>);
-    fn with_extensions(&mut self, extensions: Vec<S::Extend>);
-    fn with_transfers(&mut self, transfers: Vec<S::Chown>);
+    fn with_creates(&mut self, creates: Vec<Self::Create>);
+    fn with_updates(&mut self, updates: Vec<Self::Update>);
+    fn with_deletes(&mut self, deletes: Vec<Self::Delete>);
+    fn with_extensions(&mut self, extensions: Vec<Self::Extend>);
+    fn with_transfers(&mut self, transfers: Vec<Self::Chown>);
 }
 impl PayloadBuilder<Ethereum> for StoragePayload {
+    type Create = Create;
+    type Update = Update;
+    type Delete = Delete;
+    type Extend = Extend;
+    type Chown = Chown;
+
     fn is_empty(&self) -> bool {
         self.creates.is_empty()
             && self.updates.is_empty()
@@ -153,19 +187,19 @@ impl PayloadBuilder<Ethereum> for StoragePayload {
             + self.extensions.len()
             + self.transfers.len()
     }
-    fn with_creates(&mut self, creates: Vec<<Ethereum as StorageNetwork>::Create>) {
+    fn with_creates(&mut self, creates: Vec<Self::Create>) {
         self.creates = creates;
     }
-    fn with_updates(&mut self, updates: Vec<<Ethereum as StorageNetwork>::Update>) {
+    fn with_updates(&mut self, updates: Vec<Self::Update>) {
         self.updates = updates;
     }
-    fn with_deletes(&mut self, deletes: Vec<<Ethereum as StorageNetwork>::Delete>) {
+    fn with_deletes(&mut self, deletes: Vec<Self::Delete>) {
         self.deletes = deletes;
     }
-    fn with_extensions(&mut self, extensions: Vec<<Ethereum as StorageNetwork>::Extend>) {
+    fn with_extensions(&mut self, extensions: Vec<Self::Extend>) {
         self.extensions = extensions;
     }
-    fn with_transfers(&mut self, transfers: Vec<<Ethereum as StorageNetwork>::Chown>) {
+    fn with_transfers(&mut self, transfers: Vec<Self::Chown>) {
         self.transfers = transfers;
     }
 }

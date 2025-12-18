@@ -7,7 +7,7 @@ use url::Url;
 
 use arkiv_sdk::{
     client::StorageProvider,
-    events::{Event, EventsClient},
+    events::{ArkivEvent, EventsClient},
     tx::ops::{create::Create, extend::Extend, update::Update},
 };
 use arkiv_test_utils::{ARKIV_WS_URL, get_client};
@@ -43,7 +43,7 @@ async fn test_event_listening() -> Result<()> {
 
     // We fast-forward the stream to the event that we are expecting
     event_stream = Box::pin(event_stream.skip_while(move |event| {
-        if let Ok(Event::EntityCreated { entity_id, .. }) = event {
+        if let Ok(ArkivEvent::EntityCreated { entity_id, .. }) = event {
             // When the entity matches, we stop skipping
             future::ready(entity_id != &entity.entity_key)
         } else {
@@ -58,7 +58,7 @@ async fn test_event_listening() -> Result<()> {
         .unwrap()
         .unwrap();
     match event {
-        Event::EntityCreated { entity_id: id, .. } => {
+        ArkivEvent::EntityCreated { entity_id: id, .. } => {
             assert_eq!(id, entity.entity_key);
         }
         event => panic!(
@@ -78,7 +78,7 @@ async fn test_event_listening() -> Result<()> {
     client.update_entities(vec![update]).await.unwrap();
 
     event_stream = Box::pin(event_stream.skip_while(move |event| {
-        if let Ok(Event::EntityUpdated { entity_id, .. }) = event {
+        if let Ok(ArkivEvent::EntityUpdated { entity_id, .. }) = event {
             future::ready(entity_id != &entity.entity_key)
         } else {
             future::ready(true)
@@ -92,7 +92,7 @@ async fn test_event_listening() -> Result<()> {
         .unwrap()
         .unwrap();
     match event {
-        Event::EntityUpdated { entity_id: id, .. } => {
+        ArkivEvent::EntityUpdated { entity_id: id, .. } => {
             assert_eq!(id, entity.entity_key);
         }
         event => panic!(
@@ -106,7 +106,7 @@ async fn test_event_listening() -> Result<()> {
     client.extend_entities(vec![extend]).await.unwrap();
 
     event_stream = Box::pin(event_stream.skip_while(move |event| {
-        if let Ok(Event::EntityExtended { entity_id, .. }) = event {
+        if let Ok(ArkivEvent::EntityExtended { entity_id, .. }) = event {
             future::ready(entity_id != &entity.entity_key)
         } else {
             future::ready(true)
@@ -120,7 +120,7 @@ async fn test_event_listening() -> Result<()> {
         .unwrap()
         .unwrap();
     match event {
-        Event::EntityExtended { entity_id: id, .. } => {
+        ArkivEvent::EntityExtended { entity_id: id, .. } => {
             assert_eq!(id, entity.entity_key);
         }
         event => panic!(
@@ -136,7 +136,7 @@ async fn test_event_listening() -> Result<()> {
         .unwrap();
 
     event_stream = Box::pin(event_stream.skip_while(move |event| {
-        if let Ok(Event::EntityRemoved { entity_id, .. }) = event {
+        if let Ok(ArkivEvent::EntityRemoved { entity_id, .. }) = event {
             future::ready(entity_id != &entity.entity_key)
         } else {
             future::ready(true)
@@ -150,7 +150,7 @@ async fn test_event_listening() -> Result<()> {
         .unwrap()
         .unwrap();
     match event {
-        Event::EntityRemoved { entity_id: id, .. } => {
+        ArkivEvent::EntityRemoved { entity_id: id, .. } => {
             assert_eq!(id, entity.entity_key);
         }
         event => panic!(

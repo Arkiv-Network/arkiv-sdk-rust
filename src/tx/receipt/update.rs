@@ -15,7 +15,7 @@ impl From<EntityUpdated> for UpdateReceipt {
     fn from(data: EntityUpdated) -> Self {
         Self {
             entity_key: data.entityKey.into(),
-            expiration_block: data.expirationBlock.try_into().unwrap_or_default(),
+            expiration_block: data.newExpirationBlock.try_into().unwrap_or_default(),
         }
     }
 }
