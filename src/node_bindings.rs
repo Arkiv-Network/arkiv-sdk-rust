@@ -36,26 +36,10 @@ impl Arkiv {
     /// the path is not a directory. See [`fs::canonicalize`] for further details.
     /// - If the home config directory does not exist, or could not be created. See
     /// [`dirs::config_dir`] and [`fs::create_dir_all`] for further details.
-    fn fetch_url(mut self, download_dir: Option<path::PathBuf>, url: url::Url) -> io::Result<Self> {
-        download_dir
-            .map_or_else(
-                || match dirs::config_dir() {
-                    Some(config_dir) => {
-                        let default = config_dir.join("arkiv");
-                        fs::create_dir_all(&default).map(|_| default)
-                    }
-                    None => Err(io::Error::new(
-                        io::ErrorKind::NotFound,
-                        "config directory does not exist: https://docs.rs/dirs/6.0.0/dirs/fn.config_dir.html",
-                    )),
-                },
-                fs::canonicalize,
-            )
-            .map(|download_dir| {
-                self.download_dir = Some(download_dir);
-                self.fetch_url = Some(url);
-                self
-            })
+    fn fetch_url(mut self, download_dir: Option<path::PathBuf>, url: url::Url) -> Self {
+        self.download_dir = download_dir;
+        self.fetch_url = Some(url);
+        self
     }
 
     /// Sets the option to fetch a prebuilt `op-geth` tagged release from <https://github.com/Golem-Base/golembase-op-geth/releases>.
@@ -75,7 +59,7 @@ impl Arkiv {
     /// the path is not a directory. See [`fs::canonicalize`] for further details.
     /// - If the home config directory does not exist, or could not be created. See
     /// [`dirs::config_dir`] and [`fs::create_dir_all`] for further details.
-    pub fn fetch_tag(self, download_dir: Option<path::PathBuf>, tag: &str) -> io::Result<Self> {
+    pub fn fetch_tag(self, download_dir: Option<path::PathBuf>, tag: &str) -> Self {
         self.fetch_url(
             download_dir,
             url::Url::parse(&format!("{}/tag/{tag}", Self::GITHUB_RELEASE_URL))
@@ -100,7 +84,7 @@ impl Arkiv {
     /// the path is not a directory. See [`fs::canonicalize`] for further details.
     /// - If the home config directory does not exist, or could not be created. See
     /// [`dirs::config_dir`] and [`fs::create_dir_all`] for further details.
-    pub fn fetch_latest(self, download_dir: Option<path::PathBuf>) -> io::Result<Self> {
+    pub fn fetch_latest(self, download_dir: Option<path::PathBuf>) -> Self {
         self.fetch_url(
             download_dir,
             url::Url::parse(&format!("{}/latest", Self::GITHUB_RELEASE_URL))
@@ -129,13 +113,29 @@ impl Arkiv {
     /// behavior can be overriden with [`Arkiv::path`], [`Arkiv::fetch_tag`] or [`Arkiv::fetch_latest`].
     /// See [`process::Command::new`] for further details.
     pub fn spawn(mut self) -> io::Result<ArkivInstance> {
-        if let Some((download_dir, url)) = self.download_dir.as_ref().zip(self.fetch_url.as_ref())
+        if let Some(url) = self.fetch_url.as_ref()
             && self.program.is_none()
         {
-            self.program = Some(Self::download_release(download_dir, url)?);
+            self.program = Some(Self::download_release(
+                &self.download_dir
+                    .map_or_else(
+                        || match dirs::config_dir() {
+                            Some(config_dir) => {
+                                let default = config_dir.join("arkiv");
+                                fs::create_dir_all(&default).map(|_| default)
+                            }
+                            None => Err(io::Error::new(
+                                io::ErrorKind::NotFound,
+                                "config directory does not exist: https://docs.rs/dirs/6.0.0/dirs/fn.config_dir.html",
+                            )),
+                        },
+                        fs::canonicalize,
+                    )?,
+                url,
+            )?);
         }
 
-        let mut cmd = self.program.as_ref().map_or_else(
+        let mut cmd = self.program.map_or_else(
             || process::Command::new(Self::DEFAULT_PROGRAM),
             process::Command::new,
         );
