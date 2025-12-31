@@ -9,7 +9,7 @@ repository = "https://github.com/arkiv-network/arkiv-sdk-rust"
 license = "GPL-3.0-or-later"
 
 [workspace]
-members = ["demo", "test-utils"]
+members = ["demo", "examples/keystore_signer", "examples/subscriptions", "test-utils"]
 resolver = "2"
 
 # This is available as a feature in the alloy crate, however,

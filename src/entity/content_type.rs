@@ -45,7 +45,7 @@ impl<Mime: Into<String> + AsRef<str>> ContentType<Mime> {
         Self(mime)
     }
 
-    /// A reference to the underlying source string `S`.
+    /// A reference to the underlying source.
     pub fn source(&self) -> &str {
         self.0.as_ref()
     }

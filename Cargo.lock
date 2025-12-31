@@ -2352,6 +2352,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "keystore_signer"
+version = "0.1.0"
+dependencies = [
+ "arkiv-sdk",
+ "tokio",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3603,6 +3611,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.111",
+]
+
+[[package]]
+name = "subscriptions"
+version = "0.1.0"
+dependencies = [
+ "arkiv-sdk",
+ "tokio",
 ]
 
 [[package]]

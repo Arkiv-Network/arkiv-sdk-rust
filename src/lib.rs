@@ -4,6 +4,7 @@ mod contract;
 pub mod entity;
 pub mod error;
 pub mod network;
+pub mod node_bindings;
 pub mod providers;
 pub mod rpc;
 pub mod tx;
@@ -17,8 +18,8 @@ pub use tx::{ops, receipt};
 
 /// Re-export of commonly used types from `alloy`.
 pub use alloy::{
-    primitives::{Address, keccak256},
+    primitives::{keccak256, Address},
     providers::{DynProvider, Provider, ProviderBuilder},
-    signers::{Signature, local::PrivateKeySigner},
+    signers::{local::PrivateKeySigner, Signature},
     transports::http::reqwest::Url,
 };
