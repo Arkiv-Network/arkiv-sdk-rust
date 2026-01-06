@@ -4,13 +4,15 @@
 
 use std::{fs, io, ops, path, process};
 
+pub use util::Tag;
+
 /// Builder for launching a local `op-geth` node with `arkiv` capabilities.
 #[derive(Debug, Clone, Default)]
 pub struct Arkiv {
     /// The path to the program to execute. Defaults to [`Self::DEFAULT_PROGRAM`].
     program: Option<path::PathBuf>,
     /// The URL of the tagged release to fetch.
-    fetch_url: Option<url::Url>,
+    release_url: Option<String>,
     /// The directory to cache tagged releases once downloaded and checksum verified.
     /// Defaults to `$XDG_CONFIG_HOME/arkiv/<TAG>`.
     download_dir: Option<path::PathBuf>,
@@ -21,7 +23,8 @@ impl Arkiv {
         "https://api.github.com/repos/Golem-Base/golembase-op-geth/releases";
 
     /// Sets the option to fetch a prebuilt `op-geth` tagged release from <https://github.com/Golem-Base/golembase-op-geth/releases>.
-    /// The binary is placed at the specified directory if provided, otherwise defaulting to `$XDG_CONFIG_HOME/arkiv/<TAG>`.
+    /// The release is unpacked at the specified directory provided by [`Arkiv::download_dir`],
+    /// otherwise defaulting to `$XDG_CONFIG_HOME/arkiv`, appended by the tag.
     /// The download is not triggered until [`Arkiv::spawn`], and will avoid needless network calls. Successive
     /// calls will not trigger re-downloads unless the tag directory is deleted.
     ///
@@ -37,60 +40,20 @@ impl Arkiv {
     /// the path is not a directory. See [`fs::canonicalize`] for further details.
     /// - If the home config directory does not exist, or could not be created. See
     /// [`dirs::config_dir`] and [`fs::create_dir_all`] for further details.
-    fn fetch_url(mut self, download_dir: Option<path::PathBuf>, url: url::Url) -> Self {
-        self.download_dir = download_dir;
-        self.fetch_url = Some(url);
+    pub fn fetch_tag(mut self, tag: Tag) -> Self {
+        self.release_url = Some(match tag {
+            Tag::Latest => format!("{}/latest", Self::GITHUB_RELEASE_URL),
+            Tag::Name(tag) => format!("{}/tags/{tag}", Self::GITHUB_RELEASE_URL),
+        });
         self
     }
 
-    /// Sets the option to fetch a prebuilt `op-geth` tagged release from <https://github.com/Golem-Base/golembase-op-geth/releases>.
-    /// The binary is placed at the specified directory if provided, otherwise defaulting to `$XDG_CONFIG_HOME/arkiv/<TAG>`.
-    /// The download is not triggered until [`Arkiv::spawn`], and will avoid needless network calls. Successive
-    /// calls will not trigger re-downloads unless the tag directory is deleted.
+    /// Sets the directory to download an arkiv `op-geth` release.
     ///
-    /// > NOTE: [`Arkiv::path`] will override this setting, which is useful when developing in offline mode
-    /// > or testing in sandboxed environments that cannot make network calls.
-    ///
-    /// If the checksum cannot be verified, the fetched binary will not be executed
-    /// and an error will be returned from [`Arkiv::spawn`].
-    ///
-    /// # Errors
-    ///
-    /// - If the download directory does not exist, or if the final component of
-    /// the path is not a directory. See [`fs::canonicalize`] for further details.
-    /// - If the home config directory does not exist, or could not be created. See
-    /// [`dirs::config_dir`] and [`fs::create_dir_all`] for further details.
-    pub fn fetch_tag(self, download_dir: Option<path::PathBuf>, tag: &str) -> Self {
-        self.fetch_url(
-            download_dir,
-            url::Url::parse(&format!("{}/tags/{tag}", Self::GITHUB_RELEASE_URL))
-                .expect("Failed to parse tagged release url"),
-        )
-    }
-
-    /// Sets the option to fetch the latest prebuilt `op-geth` tagged release from <https://github.com/Golem-Base/golembase-op-geth/releases>.
-    /// The binary is placed at the specified directory if provided, otherwise defaulting to `$XDG_CONFIG_HOME/arkiv/<TAG>`.
-    /// The download is not triggered until [`Arkiv::spawn`], and will avoid needless network calls. Successive
-    /// calls will not trigger re-downloads unless the tag directory is deleted.
-    ///
-    /// > NOTE: [`Arkiv::path`] will override this setting, which is useful when developing in offline mode
-    /// > or testing in sandboxed environments that cannot make network calls.
-    ///
-    /// If the checksum cannot be verified, the fetched binary will not be executed
-    /// and an error will be returned from [`Arkiv::spawn`].
-    ///
-    /// # Errors
-    ///
-    /// - If the download directory does not exist, or if the final component of
-    /// the path is not a directory. See [`fs::canonicalize`] for further details.
-    /// - If the home config directory does not exist, or could not be created. See
-    /// [`dirs::config_dir`] and [`fs::create_dir_all`] for further details.
-    pub fn fetch_latest(self, download_dir: Option<path::PathBuf>) -> Self {
-        self.fetch_url(
-            download_dir,
-            url::Url::parse(&format!("{}/latest", Self::GITHUB_RELEASE_URL))
-                .expect("Failed to parse latest release url"),
-        )
+    /// Setting this option alone will have no effect. See [`Arkiv::fetch_tag`] for details.
+    pub fn download_dir<T: Into<path::PathBuf>>(mut self, download_dir: T) -> Self {
+        self.download_dir = Some(download_dir.into());
+        self
     }
 
     /// Overrides the path to the `geth` program.
@@ -102,10 +65,10 @@ impl Arkiv {
     /// Consumes the builder and spawns an [`ArkivInstance`].
     ///
     /// By default, it's expected that `geth` is on `$PATH`. The default
-    /// behavior can be overriden with [`Arkiv::path`], [`Arkiv::fetch_tag`] or [`Arkiv::fetch_latest`].
+    /// behavior can be overriden with [`Arkiv::path`], or [`Arkiv::fetch_tag`].
     /// See [`process::Command::new`] for further details.
     pub fn spawn(mut self) -> io::Result<ArkivInstance> {
-        if let Some(url) = self.fetch_url
+        if let Some(url) = self.release_url
             && self.program.is_none()
         {
             self.program = Some(util::Release::download(
@@ -181,13 +144,23 @@ impl ops::Drop for ArkivInstance {
 
 mod util {
     //! Handlers for downloading, verifying and managing release binaries used by [`crate::node_bindings::Arkiv`].
-
     use std::{env, fs, io, path};
 
     use alloy::signers::k256::sha2::{Digest, Sha256};
     use serde::Deserialize;
 
     use crate::node_bindings::Arkiv;
+
+    /// The release tag to fetch from GitHub.
+    ///
+    /// A list of tags can be found at <https://github.com/Golem-Base/golembase-op-geth/tags>.
+    #[derive(Debug, Clone)]
+    pub enum Tag {
+        /// The latest available tag.
+        Latest,
+        /// Specify a tag by name.
+        Name(String),
+    }
 
     #[derive(Deserialize)]
     pub(in crate::node_bindings) struct Release {
@@ -199,9 +172,9 @@ mod util {
 
         /// Checks if the tag exists otherwise downloads the release into a temp directory and verifies the checksum.
         /// Once verified, extracts the tag and moves the contents to `download_dir/tag` and returns the path to the `geth` program.
-        pub(in crate::node_bindings) fn download(
+        pub(in crate::node_bindings) fn download<U: reqwest::IntoUrl>(
             download_dir: &path::PathBuf,
-            url: url::Url,
+            url: U,
         ) -> io::Result<path::PathBuf> {
             let client = reqwest::blocking::Client::new();
             let response = client

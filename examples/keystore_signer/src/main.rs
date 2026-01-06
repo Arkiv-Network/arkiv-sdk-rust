@@ -1,11 +1,10 @@
-use std::{io, path};
-
-use arkiv_sdk::node_bindings::Arkiv;
+use arkiv_sdk::node_bindings::{Arkiv, Tag};
 
 #[tokio::main]
-async fn main() -> io::Result<()> {
+async fn main() -> std::io::Result<()> {
     let node = Arkiv::default()
-        .fetch_latest(Some(path::PathBuf::from("../../")))
+        .fetch_tag(Tag::Latest)
+        .download_dir("../../")
         .spawn()?;
     println!("arkiv node pid: {}", node.id());
 
