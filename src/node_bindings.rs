@@ -64,7 +64,7 @@ impl Arkiv {
         self.fetch_url(
             download_dir,
             url::Url::parse(&format!("{}/tags/{tag}", Self::GITHUB_RELEASE_URL))
-                .expect("failed to parse tagged release url"),
+                .expect("Failed to parse tagged release url"),
         )
     }
 
@@ -89,7 +89,7 @@ impl Arkiv {
         self.fetch_url(
             download_dir,
             url::Url::parse(&format!("{}/latest", Self::GITHUB_RELEASE_URL))
-                .expect("failed to parse latest release url"),
+                .expect("Failed to parse latest release url"),
         )
     }
 
@@ -105,7 +105,7 @@ impl Arkiv {
     /// behavior can be overriden with [`Arkiv::path`], [`Arkiv::fetch_tag`] or [`Arkiv::fetch_latest`].
     /// See [`process::Command::new`] for further details.
     pub fn spawn(mut self) -> io::Result<ArkivInstance> {
-        if let Some(url) = self.fetch_url.as_ref()
+        if let Some(url) = self.fetch_url
             && self.program.is_none()
         {
             self.program = Some(util::Release::download(
@@ -118,7 +118,7 @@ impl Arkiv {
                             }
                             None => Err(io::Error::new(
                                 io::ErrorKind::NotFound,
-                                "config directory does not exist: https://docs.rs/dirs/6.0.0/dirs/fn.config_dir.html",
+                                "Config directory does not exist: https://docs.rs/dirs/6.0.0/dirs/fn.config_dir.html",
                             )),
                         },
                         fs::canonicalize,
@@ -180,8 +180,14 @@ impl ops::Drop for ArkivInstance {
 }
 
 mod util {
+    //! Handlers for downloading, verifying and managing release binaries used by [`crate::node_bindings::Arkiv`].
+
+    use std::{env, fs, io, path};
+
+    use alloy::signers::k256::sha2::{Digest, Sha256};
     use serde::Deserialize;
-    use std::{io, path};
+
+    use crate::node_bindings::Arkiv;
 
     #[derive(Deserialize)]
     pub(in crate::node_bindings) struct Release {
@@ -189,187 +195,158 @@ mod util {
         assets: Vec<Asset>,
     }
     impl Release {
+        const ASSET_NAME: &str = "golembase-op-geth";
+
         /// Checks if the tag exists otherwise downloads the release into a temp directory and verifies the checksum.
         /// Once verified, extracts the tag and moves the contents to `download_dir/tag` and returns the path to the `geth` program.
-        pub fn download(download_dir: &path::PathBuf, url: &url::Url) -> io::Result<path::PathBuf> {
+        pub(in crate::node_bindings) fn download(
+            download_dir: &path::PathBuf,
+            url: url::Url,
+        ) -> io::Result<path::PathBuf> {
             let client = reqwest::blocking::Client::new();
-            let resp = client
-                .get(url.as_str())
+            let response = client
+                .get(url)
                 .header(reqwest::header::USER_AGENT, "arkiv-sdk")
                 .send()
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                .map_err(io::Error::other)?;
 
-            let release = resp
-                .json::<Self>()
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            if !response.status().is_success() {
+                return Err(io::Error::other(format!(
+                    "Failed to fetch release information via github api: {}",
+                    response.status()
+                )));
+            }
 
-            let asset = release
+            let release = response.json::<Self>().map_err(io::Error::other)?;
+
+            let download_dir = download_dir.join(&release.tag_name);
+            {
+                // Skip download if this tag already exists
+                let geth = download_dir.join(Arkiv::DEFAULT_PROGRAM);
+                if geth.exists() {
+                    return Ok(geth);
+                }
+            }
+
+            let os = match env::consts::OS {
+                "macos" => "darwin",
+                "linux" => "linux",
+                "windows" => "windows",
+                other => panic!("unsupported OS: {other}"),
+            };
+            let arch = match env::consts::ARCH {
+                "x86_64" => "amd64",
+                "aarch64" => "arm64",
+                other => panic!("unsupported arch: {other}"),
+            };
+            let asset_name = |ext: &str| {
+                format!(
+                    "{}-{}-{os}-{arch}.{ext}",
+                    Self::ASSET_NAME,
+                    release.tag_name
+                )
+            };
+
+            let tarname = asset_name("tar.gz");
+            let tarball = release
                 .assets
                 .iter()
-                .find(|asset| {
-                    let os = match std::env::consts::OS {
-                        "macos" => "darwin",
-                        "linux" => "linux",
-                        "windows" => "windows",
-                        other => panic!("unsupported OS: {other}"),
-                    };
-                    let arch = match std::env::consts::ARCH {
-                        "x86_64" => "amd64",
-                        "aarch64" => "arm64",
-                        other => panic!("unsupported arch: {other}"),
-                    };
-
-                    asset.name.ends_with(".tar.gz")
-                        && asset.name.contains(os)
-                        && asset.name.contains(arch)
-                })
+                .find(|asset| asset.name == tarname)
                 .ok_or_else(|| {
                     io::Error::new(
                         io::ErrorKind::NotFound,
-                        "No matching tarball found in latest release",
+                        format!(
+                            "Failed to find tarball asset {tarname}:\nAvailable assets: {:?}",
+                            release.assets
+                        ),
                     )
                 })?;
 
-            todo!(
-            "Check if the tag exists otherwise download the release into a temp dir and verify checksum.
-            Once verified, extract the tag and move the contents to download_dir/tag and return the path to the geth program."
-        )
+            let shaname = asset_name("tar.gz.sha256");
+            let checksum = release
+                .assets
+                .iter()
+                .find(|asset| asset.name == shaname)
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::NotFound,
+                        format!(
+                            "Failed to find checksum asset {shaname}:\nAvailable assets: {:?}",
+                            release.assets
+                        ),
+                    )
+                })?;
+
+            Asset::download(client, tarball, checksum, download_dir)
         }
     }
 
-    #[derive(Deserialize)]
+    #[derive(Debug, Deserialize)]
     struct Asset {
         name: String,
         browser_download_url: String,
     }
+    impl Asset {
+        /// Download, verify and unpack an asset, placing it in the download directory and returning its path.
+        fn download(
+            client: reqwest::blocking::Client,
+            tarball: &Asset,
+            checksum: &Asset,
+            download_dir: path::PathBuf,
+        ) -> io::Result<path::PathBuf> {
+            let download_tarball = client
+                .get(&tarball.browser_download_url)
+                .send()
+                .map_err(io::Error::other)?;
+
+            if !download_tarball.status().is_success() {
+                return Err(io::Error::other(format!(
+                    "Failed to download tarball {}: {}",
+                    tarball.browser_download_url,
+                    download_tarball.status()
+                )));
+            }
+
+            let tmp = tempfile::tempdir()?;
+            let tarpath = tmp.path().join(&tarball.name);
+            let mut tarfile = fs::File::create(&tarpath)?;
+            let mut content = io::Cursor::new(download_tarball.bytes().map_err(io::Error::other)?);
+            io::copy(&mut content, &mut tarfile)?;
+
+            let download_checksum = client
+                .get(&checksum.browser_download_url)
+                .send()
+                .map_err(io::Error::other)?;
+
+            if !download_checksum.status().is_success() {
+                return Err(io::Error::other(format!(
+                    "Failed to download checksum {}: {}",
+                    checksum.browser_download_url,
+                    download_checksum.status()
+                )));
+            }
+
+            let checksum = download_checksum.text().map_err(io::Error::other)?;
+
+            let mut tarfile = fs::File::open(tarpath)?;
+            let mut hasher = Sha256::new();
+            io::copy(&mut tarfile, &mut hasher)?;
+
+            let hash = hex::encode(hasher.finalize());
+
+            if checksum != hash {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "Checksum mismatch! This could be an indicator of a man-in-the-middle attack.\nExpected: {checksum}\nGot:     {hash}"
+                    ),
+                ));
+            }
+
+            let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(tarfile));
+            archive.unpack(&download_dir)?;
+
+            Ok(download_dir.join(Arkiv::DEFAULT_PROGRAM))
+        }
+    }
 }
-
-// use flate2::read::GzDecoder;
-// use reqwest::blocking::Client;
-// use sha2::{Digest, Sha256};
-// use std::{
-//     fs,
-//     fs::File,
-//     io::{self, Read},
-//     path::{Path, PathBuf},
-// };
-// use tar::Archive;
-// use tempfile::tempdir;
-// use url::Url;
-
-// /// Download a release into `download_dir/<tag>/` and return the path to the geth executable
-// pub fn download_release(download_dir: &Path, url: &Url) -> io::Result<PathBuf> {
-//     fs::create_dir_all(download_dir)?;
-
-//     let file_name = url
-//         .path_segments()
-//         .and_then(|s| s.last())
-//         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid URL: missing filename"))?;
-
-//     let tag = extract_tag_from_filename(file_name)
-//         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Unable to extract tag"))?;
-
-//     // `${download_dir}/v1.2.3`
-//     let tag_dir = download_dir.join(&tag);
-
-//     if tag_dir.exists() {
-//         return Ok(tag_dir.join("geth"));
-//     }
-
-//     let tmp = tempdir()?;
-//     let tar_path = tmp.path().join(file_name);
-
-//     download_to_file(url, &tar_path)?;
-//     verify_checksum(&tar_path, &url.clone().into_string())?; // checksum URL logic is placeholder
-//     extract_tarball(&tar_path, &tag_dir)?;
-
-//     Ok(tag_dir.join("geth"))
-// }
-
-// /// Download URL → local file
-// fn download_to_file(url: &Url, dest: &Path) -> io::Result<()> {
-//     let response = Client::new()
-//         .get(url.clone())
-//         .send()
-//         .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("HTTP Error: {e}")))?;
-
-//     if !response.status().is_success() {
-//         return Err(io::Error::new(
-//             io::ErrorKind::Other,
-//             format!("Failed to download: {}", response.status()),
-//         ));
-//     }
-
-//     let mut file = File::create(dest)?;
-//     let mut content = io::Cursor::new(response.bytes().map_err(|e| {
-//         io::Error::new(io::ErrorKind::Other, format!("Read bytes failed: {e}"))
-//     })?);
-//     io::copy(&mut content, &mut file)?;
-//     Ok(())
-// }
-
-// /// Verify checksum against a checksum URL or embedded logic
-// fn verify_checksum(path: &Path, release_url: &str) -> io::Result<()> {
-//     // Example assumption:
-//     // If release_url = "https://…/op-geth-v1.2.3.tar.gz" then checksum URL might be "…/op-geth-v1.2.3.sha256"
-//     let checksum_url = format!("{release_url}.sha256");
-
-//     let checksum = download_checksum(&checksum_url)?;
-
-//     let mut file = File::open(path)?;
-//     let mut hasher = Sha256::new();
-//     let mut buffer = [0u8; 4096];
-
-//     loop {
-//         let n = file.read(&mut buffer)?;
-//         if n == 0 { break; }
-//         hasher.update(&buffer[..n]);
-//     }
-//     let digest = hasher.finalize();
-//     let hex_digest = hex::encode(digest);
-
-//     if hex_digest != checksum {
-//         return Err(io::Error::new(
-//             io::ErrorKind::InvalidData,
-//             format!("Checksum mismatch: expected {checksum}, got {hex_digest}"),
-//         ));
-//     }
-//     Ok(())
-// }
-
-// fn download_checksum(url: &str) -> io::Result<String> {
-//     let resp = Client::new()
-//         .get(url)
-//         .send()
-//         .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Checksum HTTP Error: {e}")))?;
-
-//     if !resp.status().is_success() {
-//         return Err(io::Error::new(
-//             io::ErrorKind::Other,
-//             format!("Failed to get checksum: {}", resp.status()),
-//         ));
-//     }
-
-//     let text = resp.text().map_err(|e| {
-//         io::Error::new(io::ErrorKind::Other, format!("Checksum read failed: {e}"))
-//     })?;
-
-//     Ok(text.trim().to_string())
-// }
-
-// /// Extract tarball to directory
-// fn extract_tarball(tarball: &Path, dest: &Path) -> io::Result<()> {
-//     fs::create_dir_all(dest)?;
-//     let file = File::open(tarball)?;
-//     let mut archive = Archive::new(GzDecoder::new(file));
-//     archive.unpack(dest)?;
-//     Ok(())
-// }
-
-// /// extremely naive tag extraction
-// fn extract_tag_from_filename(name: &str) -> Option<String> {
-//     // Example: op-geth-v1.2.3-darwin-arm64.tar.gz → v1.2.3
-//     name.split('-')
-//         .find(|s| s.starts_with('v') && s.chars().nth(1).map(|c| c.is_numeric()).unwrap_or(false))
-//         .map(|v| v.to_string())
-// }
