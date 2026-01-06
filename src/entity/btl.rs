@@ -41,12 +41,12 @@ impl Default for BlocksToLive {
 }
 impl From<u64> for BlocksToLive {
     fn from(value: u64) -> Self {
-        Self(value)
+        Self::new(value)
     }
 }
 impl From<time::Duration> for BlocksToLive {
     fn from(value: time::Duration) -> Self {
-        Self(value.as_secs() / 2)
+        Self::new(value.as_secs() / 2)
     }
 }
 
