@@ -41,7 +41,7 @@ impl<Source: Into<String> + AsRef<str>> TryFrom<mime::Mime<Source>> for ContentT
 }
 
 impl<Mime: Into<String> + AsRef<str>> ContentType<Mime> {
-    pub fn new(mime: Mime) -> ContentType<Mime> {
+    pub const fn new(mime: Mime) -> ContentType<Mime> {
         Self(mime)
     }
 

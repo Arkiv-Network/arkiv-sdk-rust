@@ -1,4 +1,5 @@
-// TODO: Use `std::time::Duration`, get cadence when constructing client
+use std::time;
+
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
@@ -6,14 +7,16 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Example
 ///
-/// Each block is roughly 2 seconds of life. The following shows
-/// one way to construct this in an ergonomic and reusable way
-/// that also takes advantage of compile time checks.
+/// > NOTE: Each block is roughly 2 seconds of life.
 ///
 /// ```rs
+/// use std::time;
 /// use arkiv_sdk::entity::BlocksToLive;
 ///
+/// // As a const value
 /// const THIRTY_SECONDS: BlocksToLive = BlocksToLive::new(15u64);
+/// // From `std::time::Duration`
+/// let thirty_secs = BlocksToLive::from(time::Duration::from_secs(30));
 /// ```
 ///
 /// # Panics
@@ -41,8 +44,19 @@ impl From<u64> for BlocksToLive {
         Self(value)
     }
 }
+impl From<time::Duration> for BlocksToLive {
+    fn from(value: time::Duration) -> Self {
+        Self(value.as_secs() / 2)
+    }
+}
 
 #[test]
 fn btl_const_compiles() {
     const THIRTY_SECONDS: BlocksToLive = BlocksToLive::new(15u64);
+}
+
+#[test]
+fn btl_from_duration() {
+    let thirty_secs = BlocksToLive::from(time::Duration::from_secs(30));
+    assert_eq!(thirty_secs.0, 15);
 }
