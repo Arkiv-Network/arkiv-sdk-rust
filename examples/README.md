@@ -17,9 +17,12 @@ network and event tracking from the Arkiv solidity contract.
 
 ## Setup
 
-`arkiv` currently doesn't have a straight-forward way of testing locally, like `anvil`. Instead,
-you'll need to use the `golembase-op-geth` docker container and command line application to spin up
-a local instance, wallet and fund an account. The following steps show how to manually do this.
+The `arkiv_sdk` has a `node-bindings` cargo feature which provides the `node_bindings` module containing the `Arkiv`
+and `ArkivInstance` types for configuring and running a local node. This is similar to `alloy::node_bindings::Anvil`,
+save that it can also fetch and manage the version of `geth` from the `golembase-op-geth` github releases.
+
+If for some reason you do not want to use the `node-bindings` feature, the following steps show how to manually run
+a local `geth` node with `arkiv` capabilities:
 
 > NOTE: You will need `docker` and a `go` toolchain in order to run the node and build the command line app.
 
