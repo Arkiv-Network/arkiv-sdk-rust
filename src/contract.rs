@@ -22,39 +22,45 @@ alloy::sol! {
     contract ArkivAbi {
         /// The event emitted from the storage contract when an entity is created.
         ///
-        event EntityCreated(
+        event ArkivEntityCreated(
             uint256 indexed entityKey,
             uint256 expirationBlock
         );
 
         /// The event emitted from the storage contract when an entity's data is updated.
         ///
-        event EntityUpdated(
+        event ArkivEntityUpdated(
             uint256 indexed entityKey,
             uint256 newExpirationBlock
         );
 
         /// The event emitted from the storage contract when an entity is deleted.
         ///
-        event EntityDeleted(
+        event ArkivEntityDeleted(
             uint256 indexed entityKey
         );
 
         /// The event emitted from the storage contract when an entity's life ([`crate::BlocksToLive`]) is extended.
         ///
-        event EntityExtended(
+        event ArkivEntityBTLExtended(
             uint256 indexed entityKey,
             uint256 oldExpirationBlock,
             uint256 newExpirationBlock
         );
 
-        // TODO: Figure out if this is all that's necessary
         /// The event emitted from the storage contract when an entity is transferred from one address to another.
         ///
-        event EntityTransferred(
+        event ArkivEntityOwnerChanged(
             uint256 indexed entityKey,
-            address oldOwner,
-            address newOwner
+            address indexed oldOwner,
+            address indexed newOwner
+        );
+
+        /// The event emitted when an entity is automatically removed by the housekeeping system due to expiration.
+        ///
+        event ArkivEntityExpired(
+            uint256 indexed entityKey,
+            address indexed ownerAddress
         );
     }
 }
@@ -98,10 +104,10 @@ pub enum ArkivEvent {
         /// The transaction hash that triggered the event
         transaction_hash: EntityKey,
     },
-    /// Entity was extended.
+    /// Entity BTL was extended.
     /// Contains the entity ID, block number, and transaction hash.
     EntityExtended {
-        /// The ID of the removed entity
+        /// The ID of the extended entity
         entity_id: EntityKey,
         /// The old expiration block
         old_expiration_block: u64,
@@ -113,11 +119,22 @@ pub enum ArkivEvent {
         transaction_hash: EntityKey,
     },
     EntityTransferred {
-        // TODO: Add docstrings
         /// The ID of the removed entity
         entity_id: EntityKey,
+        /// The previous owner's address
         old_owner: Address,
+        /// The new owner's address
         new_owner: Address,
+        /// The block number where the event occurred
+        block_number: u64,
+        /// The transaction hash that triggered the event
+        transaction_hash: EntityKey,
+    },
+    EntityExpired {
+        /// The ID of the expired entity
+        entity_id: EntityKey,
+        /// The owner of the expired entity
+        owner_address: Address,
         /// The block number where the event occurred
         block_number: u64,
         /// The transaction hash that triggered the event
@@ -139,31 +156,33 @@ impl TryFrom<Log> for ArkivEvent {
             .ok_or_else(|| anyhow::anyhow!("Missing transaction hash"))?;
         let parsed = ArkivAbi::ArkivAbiEvents::decode_log(&log.into())?;
         match parsed.data {
-            ArkivAbi::ArkivAbiEvents::EntityCreated(data) => Ok(ArkivEvent::EntityCreated {
+            ArkivAbi::ArkivAbiEvents::ArkivEntityCreated(data) => Ok(ArkivEvent::EntityCreated {
                 entity_id: data.entityKey.into(),
                 expiration_block: data.expirationBlock.try_into().unwrap_or_default(),
                 block_number,
                 transaction_hash,
             }),
-            ArkivAbi::ArkivAbiEvents::EntityUpdated(data) => Ok(ArkivEvent::EntityUpdated {
+            ArkivAbi::ArkivAbiEvents::ArkivEntityUpdated(data) => Ok(ArkivEvent::EntityUpdated {
                 entity_id: data.entityKey.into(),
                 expiration_block: data.newExpirationBlock.try_into().unwrap_or_default(),
                 block_number,
                 transaction_hash,
             }),
-            ArkivAbi::ArkivAbiEvents::EntityDeleted(data) => Ok(ArkivEvent::EntityRemoved {
+            ArkivAbi::ArkivAbiEvents::ArkivEntityDeleted(data) => Ok(ArkivEvent::EntityRemoved {
                 entity_id: data.entityKey.into(),
                 block_number,
                 transaction_hash,
             }),
-            ArkivAbi::ArkivAbiEvents::EntityExtended(data) => Ok(ArkivEvent::EntityExtended {
-                entity_id: data.entityKey.into(),
-                old_expiration_block: data.oldExpirationBlock.try_into().unwrap_or_default(),
-                new_expiration_block: data.newExpirationBlock.try_into().unwrap_or_default(),
-                block_number,
-                transaction_hash,
-            }),
-            ArkivAbi::ArkivAbiEvents::EntityTransferred(data) => {
+            ArkivAbi::ArkivAbiEvents::ArkivEntityBTLExtended(data) => {
+                Ok(ArkivEvent::EntityExtended {
+                    entity_id: data.entityKey.into(),
+                    old_expiration_block: data.oldExpirationBlock.try_into().unwrap_or_default(),
+                    new_expiration_block: data.newExpirationBlock.try_into().unwrap_or_default(),
+                    block_number,
+                    transaction_hash,
+                })
+            }
+            ArkivAbi::ArkivAbiEvents::ArkivEntityOwnerChanged(data) => {
                 Ok(ArkivEvent::EntityTransferred {
                     entity_id: data.entityKey.into(),
                     old_owner: data.oldOwner,
@@ -172,6 +191,12 @@ impl TryFrom<Log> for ArkivEvent {
                     transaction_hash,
                 })
             }
+            ArkivAbi::ArkivAbiEvents::ArkivEntityExpired(data) => Ok(ArkivEvent::EntityExpired {
+                entity_id: data.entityKey.into(),
+                owner_address: data.ownerAddress,
+                block_number,
+                transaction_hash,
+            }),
         }
     }
 }

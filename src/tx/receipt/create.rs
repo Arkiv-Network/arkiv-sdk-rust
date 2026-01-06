@@ -1,7 +1,7 @@
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use crate::{EntityKey, contract::ArkivAbi::EntityCreated};
+use crate::{EntityKey, contract::ArkivAbi::ArkivEntityCreated};
 
 /// Represents the result of creating an entity.
 /// Contains the entity key and its expiration block.
@@ -13,8 +13,8 @@ pub struct CreateReceipt {
     pub expiration_block: u64,
 }
 
-impl From<EntityCreated> for CreateReceipt {
-    fn from(data: EntityCreated) -> Self {
+impl From<ArkivEntityCreated> for CreateReceipt {
+    fn from(data: ArkivEntityCreated) -> Self {
         Self {
             entity_key: data.entityKey.into(),
             expiration_block: data.expirationBlock.try_into().unwrap_or_default(),

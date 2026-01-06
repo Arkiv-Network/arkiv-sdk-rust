@@ -197,8 +197,6 @@ fn test_create_builder() {
     let create = Create::builder()
         .btl(1000)
         .content_type(CONTENT_TYPE)
-        // TODO: We should probably also test other serialization formats, like bincode,
-        // if not just to have examples.
         .payload(serde_json::json!({ "key": "value" }).to_string())
         // Obviously not good, just pointing out that chaining maps is possible here
         // and testing that both methods compile.
@@ -231,7 +229,7 @@ fn test_with_bincode() {
     let create = Create::builder()
         .btl(1000)
         .content_type("application/octet-stream")
-        .payload(payload.to_vec()) // would be nice if Bytes implemented From<[u8; N]>...
+        .payload(payload.to_vec())
         .build();
 
     assert!(create.is_ok());

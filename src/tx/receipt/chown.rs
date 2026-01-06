@@ -2,7 +2,7 @@ use alloy::primitives::Address;
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use crate::{EntityKey, contract::ArkivAbi::EntityTransferred};
+use crate::{EntityKey, contract::ArkivAbi::ArkivEntityOwnerChanged};
 
 /// Represents the result of changing ownership of an entity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
@@ -14,8 +14,8 @@ pub struct ChownReceipt {
     /// The new owner of the entity.
     pub new_owner: Address,
 }
-impl From<EntityTransferred> for ChownReceipt {
-    fn from(data: EntityTransferred) -> Self {
+impl From<ArkivEntityOwnerChanged> for ChownReceipt {
+    fn from(data: ArkivEntityOwnerChanged) -> Self {
         Self {
             entity_key: data.entityKey.into(),
             old_owner: data.oldOwner,

@@ -43,21 +43,22 @@ impl TryFrom<RawTransactionReceipt> for TransactionReceipt {
             .try_for_each(|log| -> Result<(), ContractError> {
                 ArkivAbi::ArkivAbiEvents::decode_log(log)
                     .map(|parsed| match parsed.data {
-                        ArkivAbi::ArkivAbiEvents::EntityCreated(data) => {
+                        ArkivAbi::ArkivAbiEvents::ArkivEntityCreated(data) => {
                             receipt.created.push(CreateReceipt::from(data))
                         }
-                        ArkivAbi::ArkivAbiEvents::EntityUpdated(data) => {
+                        ArkivAbi::ArkivAbiEvents::ArkivEntityUpdated(data) => {
                             receipt.updated.push(UpdateReceipt::from(data))
                         }
-                        ArkivAbi::ArkivAbiEvents::EntityDeleted(data) => {
+                        ArkivAbi::ArkivAbiEvents::ArkivEntityDeleted(data) => {
                             receipt.deleted.push(DeleteReceipt::from(data))
                         }
-                        ArkivAbi::ArkivAbiEvents::EntityExtended(data) => {
+                        ArkivAbi::ArkivAbiEvents::ArkivEntityBTLExtended(data) => {
                             receipt.extended.push(ExtendReceipt::from(data))
                         }
-                        ArkivAbi::ArkivAbiEvents::EntityTransferred(data) => {
+                        ArkivAbi::ArkivAbiEvents::ArkivEntityOwnerChanged(data) => {
                             receipt.transferred.push(ChownReceipt::from(data))
                         }
+                        ArkivAbi::ArkivAbiEvents::ArkivEntityExpired(_) => unreachable!("House keeping transactions are automatic. Receipts are only emitted for transactions sent via program.")
                     })
                     .map_err(ContractError::from)
             })?;

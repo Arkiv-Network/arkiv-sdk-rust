@@ -1,7 +1,7 @@
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use crate::{EntityKey, contract::ArkivAbi::EntityExtended};
+use crate::{EntityKey, contract::ArkivAbi::ArkivEntityBTLExtended};
 
 /// A receipt returned by the network from a [`crate::tx::Transaction`] containing an [`crate::tx::ops::Extend`] operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
@@ -13,8 +13,8 @@ pub struct ExtendReceipt {
     /// The new expiration block of the entity.
     pub new_expiration_block: u64,
 }
-impl From<EntityExtended> for ExtendReceipt {
-    fn from(data: EntityExtended) -> Self {
+impl From<ArkivEntityBTLExtended> for ExtendReceipt {
+    fn from(data: ArkivEntityBTLExtended) -> Self {
         Self {
             entity_key: data.entityKey.into(),
             old_expiration_block: data.oldExpirationBlock.try_into().unwrap_or_default(),
