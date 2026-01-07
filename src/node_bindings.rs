@@ -1,3 +1,4 @@
+#![cfg(feature = "node-bindings")]
 // TODO: Add options and env to Arkiv
 //! Used for running an `op-geth` node with `arkiv` capabilities locally
 //! for development and testing purposes. Constructor semantics work similarly to

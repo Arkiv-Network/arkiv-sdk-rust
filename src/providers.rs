@@ -1,22 +1,26 @@
 //! Module for Arkiv client functionality.
 //! Exposes the main client interface for interacting with the Arkiv network.
 
+#[cfg(feature = "pubsub")]
+use alloy::rpc::types::{Filter, Log};
+#[cfg(feature = "pubsub")]
+use futures::StreamExt;
+
 use alloy::{
     network::Ethereum,
     primitives::U256,
     providers::{PendingTransactionBuilder, Provider},
-    rpc::{
-        client::RpcCall,
-        types::{Filter, Log},
-    },
+    rpc::client::RpcCall,
     transports::TransportResult,
 };
-use futures::StreamExt;
 
 use crate::{
     entity::Entity,
     network::StorageNetwork,
-    rpc::{ArkivRpcMethod, BlockTiming, QueryOpts},
+    rpc::{
+        ArkivRpcMethod,
+        types::{BlockTiming, QueryOpts},
+    },
     tx::{PayloadBuilder, StorageTransactionBuilder},
 };
 
@@ -96,8 +100,7 @@ pub trait StorageProvider<S: StorageNetwork>: Provider<S> + Send + Sync {
     /// A convenience method for subscribing to a stream of events from the [`StorageNetwork`]'s storage contract.
     /// Provides a closure over a [`alloy::rpc::types::Filter`] with the [`crate::tx::StorageTransactionRequest::STORAGE_ADDRESS`] pre-populated
     /// and attempts to convert the [`alloy::sol`] contract types into [`StorageNetwork::Event`].
-    ///
-    // #[cfg(feature = "pubsub")]
+    #[cfg(feature = "pubsub")]
     async fn subscribe_storage_events(
         &self,
         f: fn(Filter) -> Filter,
