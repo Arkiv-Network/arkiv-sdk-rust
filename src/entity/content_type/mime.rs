@@ -3,13 +3,12 @@ use crate::entity::content_type::Error;
 /// A minimal compile time checked, `const` friendly MIME string.
 #[derive(Debug, Clone)]
 pub struct Mime<Source: Into<String> + AsRef<str>>(pub(crate) Source);
-// TODO: Provide links to the RFCs
 impl Mime<&'static str> {
     /// Used for compile time validation of MIME types as `const` values.
     ///
     /// # Panics
     ///
-    /// Panics if the source is not a valid `MIME` according to RFC 2045 and 7231.
+    /// Panics if the source is not a valid `MIME` according to RFC [2045](https://www.rfc-editor.org/rfc/rfc2045) and [7231](https://www.rfc-editor.org/rfc/rfc7231).
     ///
     /// # Example
     ///
@@ -31,7 +30,7 @@ impl<Source: Into<String> + AsRef<str>> Mime<Source> {
         self.0.as_ref()
     }
 
-    /// Validate source according to RFC 2045 and RFC 7231 `MIME` type standards.
+    /// Validate source according to RFC [2045](https://www.rfc-editor.org/rfc/rfc2045) and RFC [7231](https://www.rfc-editor.org/rfc/rfc7231#section-3.1.1.1) `MIME` type standards.
     pub(super) const fn validate_source(source: &str) -> Result<(), Error> {
         let bytes = source.as_bytes();
 
