@@ -9,7 +9,7 @@ repository = "https://github.com/arkiv-network/arkiv-sdk-rust"
 license = "GPL-3.0-or-later"
 
 [workspace]
-members = ["demo", "examples/keystore_signer", "examples/subscriptions", "test-utils"]
+members = ["examples/keystore_signer", "examples/subscriptions"]
 resolver = "2"
 
 # This is available as a feature in the alloy crate, however,
@@ -52,11 +52,9 @@ url = "2.5"
 
 [workspace.dependencies]
 arkiv-sdk = { path = "." }
-arkiv-test-utils = { path = "test-utils" }
 
 [dev-dependencies]
 bincode = "2"
 expect-test = "1.5"
 mime = "0.3"
 serial_test = "3.2"
-arkiv-test-utils = { workspace = true }
