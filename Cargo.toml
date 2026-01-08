@@ -8,10 +8,6 @@ documentation = "https://docs.rs/arkiv_sdk"
 repository = "https://github.com/arkiv-network/arkiv-sdk-rust"
 license = "GPL-3.0-or-later"
 
-[workspace]
-members = ["examples/keystore_signer", "examples/subscriptions"]
-resolver = "2"
-
 [features]
 default = ["pubsub", "node-bindings"]
 pubsub = ["alloy/pubsub"]
@@ -59,9 +55,6 @@ tar = { version = "0.4", default-features = false, optional = true }
 tempfile = { version = "3", optional = true }
 thiserror = "2.0"
 tokio = { version = "1.45", features = ["macros", "rt-multi-thread"] }
-
-[workspace.dependencies]
-arkiv-sdk = { path = "." }
 
 [dev-dependencies]
 bincode = "2"
