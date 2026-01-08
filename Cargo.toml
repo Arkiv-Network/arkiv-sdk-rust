@@ -33,7 +33,8 @@ version = "0.3.12"
 
 [dependencies]
 alloy = { version = "1.0.24", default-features = false, features = [
-  "provider-ws",
+  "providers",
+  "network",
   "json-rpc",
   "signer-keystore",
   "sol-types",
