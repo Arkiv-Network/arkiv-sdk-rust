@@ -1,6 +1,5 @@
 #![cfg(feature = "node-bindings")]
-// TODO: Add options and env to Arkiv
-//! Used for running an `op-geth` node with `arkiv` capabilities locally
+//! Used for running a `geth` node with `arkiv` capabilities locally
 //! for development and testing purposes. Constructor semantics work similarly to
 //! `alloy::node_bindings::Anvil` and `alloy::node_bindings::AnvilInstance`.
 
@@ -8,21 +7,125 @@ use std::{fs, io, ops, path, process};
 
 pub use util::Tag;
 
-/// Builder for launching a local `op-geth` node with `arkiv` capabilities.
-#[derive(Debug, Clone, Default)]
+/// Builder for launching a local `geth` node with `arkiv` capabilities.
+///
+/// # Example
+///
+/// Assuming a `geth` executable with `arkiv` capabilities is on `$PATH`, the following is equivalent to running
+///
+/// ```sh
+/// geth --dev \
+///   --http --http.api eth,web3,net,debug,golembase,arkiv \
+///   --http.addr 0.0.0.0 --http.port 8545 \
+///   --http.corsdomain * --http.vhosts * \
+///   --ws --ws.api eth,web3,net,debug,golembase,arkiv \
+///   --ws.addr 0.0.0.0 --ws.port 8546 \
+///   --datadir /geth_data --verbosity 3
+/// ```
+///
+/// > [`Arkiv::fetch_tag`] can be used to fetch and run `geth` from the Arkiv-Network GitHub releases.
+///
+/// ```rust,ignore
+/// use arkiv_sdk::node_bindings::Arkiv;
+///
+/// let arkiv = Arkiv::default().spawn()?;
+///
+/// drop(arkiv); // kill the child process
+/// ```
+#[derive(Debug, Clone)]
+#[must_use = "This builder struct does nothing unless it is spawned: `.spawn()`"]
 pub struct Arkiv {
-    /// The path to the program to execute. Defaults to [`Self::DEFAULT_PROGRAM`].
+    /// The path to the program to execute. Defaults to [`Self::PROGRAM`].
     program: Option<path::PathBuf>,
+    /// Whether to launch the `geth` instance in `--dev` mode.
+    dev: bool,
+    /// Whether to pass the `--http` flag to the `geth` instance.
+    http: bool,
+    /// The `--http.api` which will be used when the `geth` instance is launched.
+    http_api: Option<String>,
+    /// The `--http.addr` which will be used when the `geth` instance is launched.
+    ///
+    /// Defaults to [`Self::DEFAULT_ADDR`].
+    http_addr: Option<String>,
+    /// The `--http.port` which will be used when the `geth` instance is launched.
+    ///
+    /// Defaults to [`Self::DEFAULT_HTTP_PORT`].
+    http_port: Option<u16>,
+    /// Comma separated list of domains from which to accept cross origin requests.
+    http_corsdomain: Option<String>,
+    /// Comma separated list of virtual hostnames from which to accept requests.
+    http_vhosts: Option<String>,
+    /// Whether to pass the `--ws` flag to the `geth` instance.
+    ws: bool,
+    /// The `--ws.api` which will be used when the `geth` instance is launched.
+    ws_api: Option<String>,
+    /// The `--ws.addr` which will be used when the `geth` instance is launched.
+    ///
+    /// Defaults to [`Self::DEFAULT_ADDR`].
+    ws_addr: Option<String>,
+    /// The `--ws.port` which will be used when the `geth` instance is launched.
+    ///
+    /// Defaults to [`Self::DEFAULT_WS_PORT`].
+    ws_port: Option<u16>,
+    /// The `--networkid` which will be used when the `geth` instance is launched.
+    ///
+    /// Defaults to `0` when unset.
+    networkid: Option<u64>,
+    /// Data directory for the databases and keystore.
+    datadir: Option<path::PathBuf>,
+    /// The `--verbosity` level which will be used when the `geth` instance is launched.
+    verbosity: Option<u8>,
     /// The URL of the tagged release to fetch.
     release_url: Option<String>,
     /// The directory to cache tagged releases once downloaded and checksum verified.
+    ///
     /// Defaults to `$XDG_CONFIG_HOME/arkiv/<TAG>`.
     download_dir: Option<path::PathBuf>,
 }
+impl Default for Arkiv {
+    fn default() -> Self {
+        Self::new()
+            .dev()
+            .http_addr("0.0.0.0")
+            .http_corsdomain("*")
+            .http_vhosts("*")
+            .ws_addr("0.0.0.0")
+            .datadir("/geth_data")
+            .verbosity(3)
+    }
+}
 impl Arkiv {
-    pub const DEFAULT_PROGRAM: &str = "geth";
     pub const GITHUB_RELEASE_URL: &str =
         "https://api.github.com/repos/Golem-Base/golembase-op-geth/releases";
+    pub const PROGRAM: &str = "geth";
+    pub const API: &str = "eth,web3,net,debug,golembase,arkiv";
+    pub const DEFAULT_ADDR: &str = "localhost";
+    pub const DEFAULT_HTTP_PORT: u16 = 8545;
+    pub const DEFAULT_WS_PORT: u16 = 8546;
+
+    /// Construct an [`Arkiv`] builder with all options unset.
+    #[doc(alias = "builder")]
+    pub fn new() -> Self {
+        Self {
+            program: None,
+            dev: false,
+            http: false,
+            http_api: None,
+            http_addr: None,
+            http_port: None,
+            http_corsdomain: None,
+            http_vhosts: None,
+            ws: false,
+            ws_api: None,
+            ws_addr: None,
+            ws_port: None,
+            networkid: None,
+            datadir: None,
+            verbosity: None,
+            release_url: None,
+            download_dir: None,
+        }
+    }
 
     /// Sets the option to fetch a prebuilt `op-geth` tagged release from <https://github.com/Golem-Base/golembase-op-geth/releases>.
     /// The release is unpacked at the specified directory provided by [`Arkiv::download_dir`],
@@ -30,7 +133,7 @@ impl Arkiv {
     /// The download is not triggered until [`Arkiv::spawn`], and will avoid needless network calls. Successive
     /// calls will not trigger re-downloads unless the tag directory is deleted.
     ///
-    /// > NOTE: [`Arkiv::path`] will override this setting, which is useful when developing in offline mode
+    /// > NOTE: [`Arkiv::program`] will override this setting, which is useful when developing in offline mode
     /// > or testing in sandboxed environments that cannot make network calls.
     ///
     /// If the checksum cannot be verified, the fetched binary will not be executed
@@ -59,16 +162,110 @@ impl Arkiv {
     }
 
     /// Overrides the path to the `geth` program.
-    pub fn path<T: Into<path::PathBuf>>(mut self, path: T) -> Self {
+    pub fn program<T: Into<path::PathBuf>>(mut self, path: T) -> Self {
         self.program = Some(path.into());
+        self
+    }
+
+    /// Whether to launch the `geth` instance in `--dev` mode.
+    pub fn dev(mut self) -> Self {
+        self.dev = true;
+        self
+    }
+
+    /// Whether to pass the `--http` flag to the `geth` instance.
+    pub fn http(mut self) -> Self {
+        self.http = true;
+        self
+    }
+
+    /// The `--http.api` which will be used when the `geth` instance is launched.
+    pub fn http_api<T: Into<String>>(mut self, api: T) -> Self {
+        self.http_api = Some(api.into());
+        self
+    }
+
+    /// Sets the `--http.addr` which will be used when the `geth` instance is launched.
+    ///
+    /// Defaults to [`Self::DEFAULT_ADDR`].
+    pub fn http_addr<T: Into<String>>(mut self, addr: T) -> Self {
+        self.http_addr = Some(addr.into());
+        self
+    }
+
+    /// Sets the `--http.port` which will be used when the `geth` instance is launched.
+    ///
+    /// Defaults to [`Self::DEFAULT_HTTP_PORT`].
+    pub fn http_port<T: Into<u16>>(mut self, port: T) -> Self {
+        self.http_port = Some(port.into());
+        self
+    }
+
+    /// Comma separated list of domains from which to accept cross origin requests.
+    pub fn http_corsdomain<T: Into<String>>(mut self, cors: T) -> Self {
+        self.http_corsdomain = Some(cors.into());
+        self
+    }
+
+    /// Comma separated list of virtual hostnames from which to accept requests.
+    pub fn http_vhosts<T: Into<String>>(mut self, vhosts: T) -> Self {
+        self.http_vhosts = Some(vhosts.into());
+        self
+    }
+
+    /// Whether to pass the `--ws` flag to the `geth` instance.
+    pub fn ws(mut self) -> Self {
+        self.ws = true;
+        self
+    }
+
+    /// The `--ws.api` which will be used when the `geth` instance is launched.
+    pub fn ws_api<T: Into<String>>(mut self, api: T) -> Self {
+        self.ws_api = Some(api.into());
+        self
+    }
+
+    /// Sets the `--ws.addr` which will be used when the `geth` instance is launched.
+    ///
+    /// Defaults to [`Self::DEFAULT_ADDR`].
+    pub fn ws_addr<T: Into<String>>(mut self, addr: T) -> Self {
+        self.ws_addr = Some(addr.into());
+        self
+    }
+
+    /// Sets the `--ws.port` which will be used when the `geth` instance is launched.
+    ///
+    /// Defaults to [`Self::DEFAULT_WS_PORT`].
+    pub fn ws_port<T: Into<u16>>(mut self, port: T) -> Self {
+        self.ws_port = Some(port.into());
+        self
+    }
+
+    /// Sets the `--networkid` which will be used when the `geth` instance is launched.
+    #[doc(alias = "chain_id")]
+    pub fn networkid(mut self, networkid: u64) -> Self {
+        self.networkid = Some(networkid);
+        self
+    }
+
+    /// Sets the `--datadir` which will be used when the `geth` instance is launched.
+    pub fn datadir<T: Into<path::PathBuf>>(mut self, datadir: T) -> Self {
+        self.datadir = Some(datadir.into());
+        self
+    }
+
+    /// The `--verbosity` level which will be used when the `geth` instance is launched.
+    pub fn verbosity(mut self, verbosity: u8) -> Self {
+        self.verbosity = Some(verbosity);
         self
     }
 
     /// Consumes the builder and spawns an [`ArkivInstance`].
     ///
     /// By default, it's expected that `geth` is on `$PATH`. The default
-    /// behavior can be overriden with [`Arkiv::path`], or [`Arkiv::fetch_tag`].
+    /// behavior can be overriden with [`Arkiv::program`], or [`Arkiv::fetch_tag`].
     /// See [`process::Command::new`] for further details.
+    #[track_caller]
     pub fn spawn(mut self) -> io::Result<ArkivInstance> {
         if let Some(url) = self.release_url
             && self.program.is_none()
@@ -92,14 +289,95 @@ impl Arkiv {
             )?);
         }
 
-        let mut cmd = self.program.map_or_else(
-            || process::Command::new(Self::DEFAULT_PROGRAM),
-            process::Command::new,
+        let mut cmd = process::Command::new(
+            self.program
+                .as_deref()
+                .map_or_else(|| Self::PROGRAM.as_ref(), path::Path::as_os_str),
         );
-        cmd.stdout(process::Stdio::piped())
-            .stderr(process::Stdio::inherit());
+        cmd.stderr(process::Stdio::piped());
 
-        cmd.spawn().map(ArkivInstance)
+        if self.dev {
+            cmd.arg("--dev");
+        }
+        if let Some(networkid) = self.networkid {
+            cmd.args(["--networkid", networkid.to_string().as_str()]);
+        }
+
+        let http_enabled = self.http || self.http_addr.is_some() || self.http_port.is_some();
+        let http_addr = self
+            .http_addr
+            .take()
+            .unwrap_or_else(|| Self::DEFAULT_ADDR.to_string());
+        let http_port = self.http_port.unwrap_or(Self::DEFAULT_HTTP_PORT);
+        if http_enabled {
+            cmd.args([
+                "--http",
+                "--http.api",
+                self.http_api.as_deref().unwrap_or(Self::API),
+                "--http.addr",
+                http_addr.as_str(),
+                "--http.port",
+                http_port.to_string().as_str(),
+            ]);
+            if let Some(http_corsdomain) = self.http_corsdomain {
+                cmd.args(["--http.corsdomain", http_corsdomain.as_str()]);
+            }
+            if let Some(http_vhosts) = self.http_vhosts {
+                cmd.args(["--http.vhosts", http_vhosts.as_str()]);
+            }
+        }
+
+        let ws_enabled = self.ws || self.ws_addr.is_some() || self.ws_port.is_some();
+        let ws_addr = self
+            .ws_addr
+            .take()
+            .unwrap_or_else(|| Self::DEFAULT_ADDR.to_string());
+        let ws_port = self.ws_port.unwrap_or(Self::DEFAULT_WS_PORT);
+        if ws_enabled {
+            cmd.args([
+                "--ws",
+                "--ws.api",
+                self.ws_api.as_deref().unwrap_or(Self::API),
+                "--ws.addr",
+                ws_addr.as_str(),
+                "--ws.port",
+                ws_port.to_string().as_str(),
+            ]);
+        }
+
+        if let Some(datadir) = self.datadir {
+            cmd.args(["--datadir".as_ref(), datadir.as_os_str()]);
+        }
+
+        if let Some(verbosity) = self.verbosity {
+            cmd.args(["--verbosity", verbosity.to_string().as_str()]);
+        }
+
+        let cmdstr = format!(
+            "{} {}",
+            cmd.get_program().to_string_lossy(),
+            cmd.get_args()
+                .map(|arg| arg.to_string_lossy())
+                .collect::<Vec<_>>()
+                .join(" "),
+        );
+        eprintln!("arkiv-node-bindings: executing commmand `{cmdstr}`");
+
+        cmd.spawn()
+            .map(|process| ArkivInstance {
+                process,
+                http_addr,
+                http_port,
+                ws_addr,
+                ws_port,
+                networkid: self.networkid.unwrap_or_default(),
+            })
+            .map_err(|err| {
+                io::Error::new(
+                    err.kind(),
+                    format!("arkiv-node-bindings: failed to execute command `{cmdstr}`: {err}"),
+                )
+            })
     }
 }
 
@@ -107,16 +385,23 @@ impl Arkiv {
 ///
 /// Construct this using the [`Arkiv`] builder.
 #[derive(Debug)]
-pub struct ArkivInstance(process::Child);
+pub struct ArkivInstance {
+    process: process::Child,
+    http_addr: String,
+    http_port: u16,
+    ws_addr: String,
+    ws_port: u16,
+    networkid: u64,
+}
 impl ops::Deref for ArkivInstance {
     type Target = process::Child;
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.process
     }
 }
 impl ops::DerefMut for ArkivInstance {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.process
     }
 }
 impl ops::Drop for ArkivInstance {
@@ -141,6 +426,35 @@ impl ops::Drop for ArkivInstance {
                 err
             );
         }
+    }
+}
+impl ArkivInstance {
+    /// Returns the network id of this instance
+    #[doc(alias = "chain_id")]
+    pub fn networkid(&self) -> u64 {
+        self.networkid
+    }
+
+    /// Returns the HTTP endpoint of this instance
+    #[doc(alias = "http_endpoint")]
+    pub fn endpoint(&self) -> String {
+        format!("http://{}:{}", self.http_addr, self.http_port)
+    }
+
+    /// Returns the Websocket endpoint of this instance
+    pub fn ws_endpoint(&self) -> String {
+        format!("ws://{}:{}", self.ws_addr, self.ws_port)
+    }
+
+    /// Returns the HTTP endpoint url of this instance
+    #[doc(alias = "http_endpoint_url")]
+    pub fn endpoint_url(&self) -> reqwest::Url {
+        reqwest::Url::parse(&self.endpoint()).unwrap()
+    }
+
+    /// Returns the Websocket endpoint url of this instance
+    pub fn ws_endpoint_url(&self) -> reqwest::Url {
+        reqwest::Url::parse(&self.ws_endpoint()).unwrap()
     }
 }
 
@@ -197,7 +511,7 @@ mod util {
             let download_dir = download_dir.join(&release.tag_name);
             {
                 // Skip download if this tag already exists
-                let geth = download_dir.join(Arkiv::DEFAULT_PROGRAM);
+                let geth = download_dir.join(Arkiv::PROGRAM);
                 if geth.exists() {
                     return Ok(geth);
                 }
@@ -321,7 +635,7 @@ mod util {
             let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(tarfile));
             archive.unpack(&download_dir)?;
 
-            Ok(download_dir.join(Arkiv::DEFAULT_PROGRAM))
+            Ok(download_dir.join(Arkiv::PROGRAM))
         }
     }
 }
