@@ -3,7 +3,11 @@
 //! for development and testing purposes. Constructor semantics work similarly to
 //! `alloy::node_bindings::Anvil` and `alloy::node_bindings::AnvilInstance`.
 
-use std::{fs, io, ops, path, process};
+use std::{
+    fs,
+    io::{self, BufRead},
+    ops, path, process, thread, time,
+};
 
 pub use util::Tag;
 
@@ -15,12 +19,12 @@ pub use util::Tag;
 ///
 /// ```sh
 /// geth --dev \
-///   --http --http.api eth,web3,net,debug,golembase,arkiv \
-///   --http.addr 0.0.0.0 --http.port 8545 \
-///   --http.corsdomain * --http.vhosts * \
-///   --ws --ws.api eth,web3,net,debug,golembase,arkiv \
-///   --ws.addr 0.0.0.0 --ws.port 8546 \
-///   --datadir /geth_data --verbosity 3
+///   --http --http.api 'eth,web3,net,debug,golembase,arkiv' \
+///   --http.addr '0.0.0.0' --http.port 8545 \
+///   --http.corsdomain '*' --http.vhosts '*' \
+///   --ws --ws.api 'eth,web3,net,debug,golembase,arkiv' \
+///   --ws.addr '0.0.0.0' --ws.port 8546 \
+///   --datadir './geth_data' --verbosity 3
 /// ```
 ///
 /// > [`Arkiv::fetch_tag`] can be used to fetch and run `geth` from the Arkiv-Network GitHub releases.
@@ -90,7 +94,7 @@ impl Default for Arkiv {
             .http_corsdomain("*")
             .http_vhosts("*")
             .ws_addr("0.0.0.0")
-            .datadir("/geth_data")
+            .datadir("./geth_data")
             .verbosity(3)
     }
 }
@@ -102,6 +106,7 @@ impl Arkiv {
     pub const DEFAULT_ADDR: &str = "localhost";
     pub const DEFAULT_HTTP_PORT: u16 = 8545;
     pub const DEFAULT_WS_PORT: u16 = 8546;
+    pub const NODE_STARTUP_TIMEOUT: time::Duration = time::Duration::from_secs(10);
 
     /// Construct an [`Arkiv`] builder with all options unset.
     #[doc(alias = "builder")]
@@ -363,7 +368,8 @@ impl Arkiv {
         );
         eprintln!("arkiv-node-bindings: executing commmand `{cmdstr}`");
 
-        cmd.spawn()
+        let mut instance = cmd
+            .spawn()
             .map(|process| ArkivInstance {
                 process,
                 http_addr,
@@ -377,7 +383,59 @@ impl Arkiv {
                     err.kind(),
                     format!("arkiv-node-bindings: failed to execute command `{cmdstr}`: {err}"),
                 )
-            })
+            })?;
+
+        let stderr = instance
+            .stderr
+            .take()
+            .ok_or(io::Error::other("failed to get geth stderr handle"))?;
+
+        let start = time::Instant::now();
+        let mut reader = io::BufReader::new(stderr);
+
+        let mut ports_started = false;
+
+        loop {
+            if start + Self::NODE_STARTUP_TIMEOUT <= time::Instant::now() {
+                drop(instance);
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "geth node took too long to start",
+                ));
+            }
+
+            let mut line = String::with_capacity(120);
+            reader.read_line(&mut line)?;
+
+            if line.contains("HTTP server started") && !line.contains("auth=true") {
+                ports_started = true;
+            }
+
+            if line.contains("Fatal:") {
+                drop(instance);
+                return Err(io::Error::new(
+                    io::ErrorKind::ConnectionAborted,
+                    format!("geth reported a fatal error: {line}"),
+                ));
+            }
+
+            // If all ports have started we are ready to be queried.
+            if ports_started {
+                break;
+            }
+        }
+
+        // We need to consume the stderr otherwise geth is non-responsive and RPC server results
+        // in connection refused.
+        // See: <https://github.com/alloy-rs/alloy/issues/2091#issuecomment-2676134147>
+        thread::spawn(move || {
+            let mut buf = String::new();
+            loop {
+                let _ = reader.read_line(&mut buf);
+            }
+        });
+
+        Ok(instance)
     }
 }
 
