@@ -13,10 +13,10 @@ use bigdecimal::{BigDecimal, ToPrimitive};
 /// Only useful for local development and testing. Funds an account with some eth.
 /// The provider must not have a wallet linked to it, otherwise the provider will
 /// attempt to look for the signing credential of account index 0.
-pub async fn fund_account<T: Into<BigDecimal>>(
+pub async fn fund_account(
     provider: &DynProvider,
     address: Address,
-    eth_amount: T,
+    amount: U256,
 ) -> alloy::rpc::types::TransactionReceipt {
     let from = provider
         .get_accounts()
@@ -33,10 +33,10 @@ pub async fn fund_account<T: Into<BigDecimal>>(
         .max_fee_per_gas(5_000_000_000) // 5 gwei
         .gas_limit(2_800_000)
         .to(address)
-        .value(eth_to_wei(eth_amount.into()).unwrap());
+        .value(amount);
 
     provider
-        .send_transaction(tx.clone())
+        .send_transaction(tx)
         .await
         .unwrap()
         .get_receipt()

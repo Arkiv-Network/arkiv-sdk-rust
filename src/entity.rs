@@ -50,7 +50,7 @@ mod serialization_tests {
 
     #[test]
     fn test_create_without_annotations() {
-        let create = Create::builder()
+        let create = Create::new()
             .btl(1000)
             .content_type("application/json")
             .payload(serde_json::json!({ "test": "payload" }).to_string())
@@ -69,7 +69,7 @@ mod serialization_tests {
 
     #[test]
     fn test_create_with_annotations() {
-        let create = Create::builder()
+        let create = Create::new()
             .btl(1000)
             .content_type("application/json")
             .payload(serde_json::json!({ "test": "payload" }).to_string())
@@ -90,7 +90,7 @@ mod serialization_tests {
 
     #[test]
     fn test_update_with_annotations() {
-        let update = Update::builder()
+        let update = Update::new()
             .entity_key(&[1; 32])
             .content_type("plain/text")
             .payload(b"updated payload".to_vec())
@@ -140,14 +140,14 @@ mod serialization_tests {
 
     #[test]
     fn test_mixed_operations() {
-        let create = Create::builder()
+        let create = Create::new()
             .content_type("plain/text")
             .payload("test payload")
             .btl(1000)
             .with_attribute(StringAttribute::new("type".to_string(), "test".to_string()))
             .build()
             .unwrap();
-        let update = Update::builder()
+        let update = Update::new()
             .entity_key(&[1; 32])
             .content_type("plain/text")
             .payload(b"updated payload".to_vec())

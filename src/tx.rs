@@ -3,10 +3,11 @@ use std::ops::{Deref, DerefMut};
 use alloy::{
     network::{Ethereum, Network, TransactionBuilder},
     primitives::{Address, TxKind},
+    providers::Provider,
 };
 use alloy_rlp::{Encodable, RlpDecodable, RlpEncodable};
 
-use crate::network::StorageNetwork;
+use crate::{StorageProvider, network::StorageNetwork};
 
 pub mod ops;
 pub mod receipt;
@@ -76,15 +77,14 @@ pub trait StorageTransactionBuilder<S: StorageNetwork>:
 
     /// Encode the storage payload and set the transaction input and [`alloy::primitives::TxKind`],
     /// returning the inner [`alloy::network::Network::TransactionRequest`].
-    fn into_request(mut self) -> S::TransactionRequest {
+    fn into_request(self) -> S::TransactionRequest {
         let payload = self.payload();
         let mut input = Vec::with_capacity(payload.len());
         payload.encode(&mut input);
 
-        self.set_kind(TxKind::Call(Self::STORAGE_ADDRESS));
-        self.set_input(input);
-
         self.to_owned()
+            .with_kind(TxKind::Call(Self::STORAGE_ADDRESS))
+            .with_input(input)
     }
 }
 

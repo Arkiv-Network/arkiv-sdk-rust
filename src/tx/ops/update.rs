@@ -32,7 +32,7 @@ pub struct Update {
     numeric_attributes: Vec<NumericAttribute>,
 }
 impl Update {
-    pub fn builder<K, B, C, P>() -> UpdateBuilder<K, B, C, P>
+    pub fn new<K, B, C, P>() -> UpdateBuilder<K, B, C, P>
     where
         K: Into<EntityKey>,
         B: Into<BlocksToLive>,

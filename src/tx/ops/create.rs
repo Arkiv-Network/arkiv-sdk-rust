@@ -31,7 +31,7 @@ impl Create {
     /// Produces a builder to populate fields for a `Create` operation, as part
     /// of a `Transaction`. Requires `btl`, `content_type` and `payload` for
     /// `CreateBuilder::build` to succeed.
-    pub fn builder<B, C, P>() -> CreateBuilder<B, C, P>
+    pub fn new<B, C, P>() -> CreateBuilder<B, C, P>
     where
         B: Into<BlocksToLive>,
         C: TryInto<ContentType<String>, Error = ContentTypeError>,
@@ -194,7 +194,7 @@ fn test_create_builder() {
     const MODE: Attribute<&str, &str> = Attribute::new("mode", "debug");
     const VERS: Attribute<&str, u32> = Attribute::new("version", 1);
 
-    let create = Create::builder()
+    let create = Create::new()
         .btl(1000)
         .content_type(CONTENT_TYPE)
         .payload(serde_json::json!({ "key": "value" }).to_string())
@@ -226,7 +226,7 @@ fn test_with_bincode() {
     let mut payload = [0u8; 4];
     bincode::encode_into_slice(Payload, &mut payload, bincode::config::standard()).unwrap();
 
-    let create = Create::builder()
+    let create = Create::new()
         .btl(1000)
         .content_type("application/octet-stream")
         .payload(payload.to_vec())

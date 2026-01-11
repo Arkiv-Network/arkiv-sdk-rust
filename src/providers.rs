@@ -7,7 +7,7 @@ use alloy::rpc::types::{Filter, Log};
 use futures::StreamExt;
 
 use alloy::{
-    network::Ethereum,
+    network::{Ethereum, TransactionBuilder},
     primitives::U256,
     providers::{PendingTransactionBuilder, Provider},
     rpc::client::RpcCall,
@@ -62,7 +62,8 @@ pub trait StorageProvider<S: StorageNetwork>: Provider<S> + Send + Sync {
         &self,
         tx: S::StorageTransactionRequest,
     ) -> TransportResult<PendingTransactionBuilder<S>> {
-        self.send_transaction(tx.into_request()).await
+        self.send_transaction(tx.into_request().with_chain_id(self.get_chain_id().await?))
+            .await
     }
 
     async fn create_entities(
@@ -154,7 +155,7 @@ mod test {
         let tx = client
             .storage_transaction()
             .create_entities(vec![
-                Create::builder()
+                Create::new()
                     .btl(5000)
                     .content_type(PLAIN_TEXT)
                     .payload("test".as_bytes())
@@ -162,7 +163,7 @@ mod test {
                     .unwrap(),
             ])
             .update_entities(vec![
-                Update::builder()
+                Update::new()
                     .entity_key(EntityKey::default())
                     .btl(5000)
                     .content_type(PLAIN_TEXT)
