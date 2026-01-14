@@ -2,36 +2,46 @@
 
 use std::time::Duration;
 
-use alloy::{primitives::U256, signers::Signer};
+use alloy::{hex::ToHexExt, primitives::U256, signers::Signer};
 use arkiv_sdk::{
-    PrivateKeySigner, Provider, ProviderBuilder, StorageProvider, node_bindings::Arkiv,
-    ops::Create, tx::StorageTransactionBuilder,
+    PrivateKeySigner, Provider, ProviderBuilder, StorageProvider,
+    node_bindings::Arkiv,
+    ops::Create,
+    rpc::types::{IncludeData, QueryOpts},
+    tx::{StorageTransactionBuilder, TransactionReceipt},
 };
 
-const FAUCET_FUNDS: U256 = U256::from_limbs([100, 0, 0, 0]);
+const FAUCET_FUNDS: U256 = U256::from_limbs([0, 100, 0, 0]);
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let arkiv = Arkiv::default().spawn()?;
 
-    eprintln!("keystore-signer: arkiv node pid: {}", arkiv.id());
+    eprintln!(
+        "keystore-signer: arkiv node: pid: {}, networkid: {}, endpoint: {}\n",
+        arkiv.id(),
+        arkiv.networkid(),
+        arkiv.endpoint_url()
+    );
 
     let node_provider = ProviderBuilder::new()
         .with_chain_id(arkiv.networkid())
         .connect_http(arkiv.endpoint_url())
         .erased();
+    arkiv_sdk::utils::generate_fee_history(&node_provider, arkiv.endpoint_url()).await;
 
     let signer = PrivateKeySigner::random().with_chain_id(Some(arkiv.networkid()));
     let address = signer.address();
     let wallet_provider = ProviderBuilder::new()
         .with_chain_id(arkiv.networkid())
+        .fetch_chain_id()
         .wallet(signer)
         .connect_http(arkiv.endpoint_url())
         .erased();
 
     let receipt = arkiv_sdk::utils::fund_account(&node_provider, address, FAUCET_FUNDS).await;
 
-    eprintln!("keystore-signer: {receipt:?}");
+    eprintln!("keystore-signer: fund_account: {receipt:?}\n");
 
     assert_eq!(
         FAUCET_FUNDS,
@@ -39,24 +49,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "keystore-signer: requested funds do not match current balance"
     );
 
+    let payload = "Hello, world!";
     let tx = wallet_provider.storage_transaction().create_entities(vec![
         Create::new()
             .btl(Duration::from_secs(10))
-            .payload("Hello, world!")
+            .payload(payload)
             .content_type("plain/text")
             .build()?,
     ]);
 
     let receipt = wallet_provider
         .send_storage_transaction(tx)
-        .await
-        .unwrap()
+        .await?
         .get_receipt()
-        .await
-        .unwrap();
+        .await?;
 
-    // TODO: this currently returns no receipt for some reason.
-    dbg!(&receipt);
+    eprintln!("keystore-signer: send_storage_transaction: {receipt:?}\n");
+
+    let TransactionReceipt { created, .. } = receipt.try_into()?;
+    let entity_key = created[0].entity_key;
+
+    let query = wallet_provider
+        .query(
+            &format!(r#"$key = {}"#, entity_key),
+            QueryOpts {
+                include_data: Some(IncludeData {
+                    owner: true,
+                    payload: true,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        )
+        .await?;
+
+    eprintln!("keystore-signer: query: {query:?}");
+
+    let entity = &query["data"][0];
+    let value = hex::decode(
+        entity["value"]
+            .as_str()
+            .expect("keystore-signer: expected entity value of type string")
+            .to_string()
+            .trim_start_matches("0x"),
+    )?;
+
+    assert_eq!(
+        entity["owner"],
+        address.encode_hex_with_prefix(),
+        "keystore-signer: owner address does not match"
+    );
+    assert_eq!(
+        value.as_slice(),
+        payload.as_bytes(),
+        "keystore-signer: payload value does not match"
+    );
 
     Ok(())
 }

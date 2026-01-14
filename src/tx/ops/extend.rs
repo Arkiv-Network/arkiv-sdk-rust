@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::entity::EntityKey;
 
 /// Type representing an extend operation as part of a `Transaction`.
-/// Used to extend the [`crate::entity::BlocksToLive`] of an entity by a number of blocks.
+/// Used to extend the [`crate::entity::BlocksToLive`] of an entity.
 #[derive(Debug, Clone, Copy, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
 pub struct Extend {
     /// The key of the entity to extend.

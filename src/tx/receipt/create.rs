@@ -1,3 +1,4 @@
+use alloy::primitives::{Address, U256};
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
@@ -9,15 +10,21 @@ use crate::{EntityKey, contract::ArkivAbi::ArkivEntityCreated};
 pub struct CreateReceipt {
     /// The key of the entity.
     pub entity_key: EntityKey,
+    /// The owner of the entity.
+    pub owner_address: Address,
     /// The block number at which the entity expires.
-    pub expiration_block: u64,
+    pub expiration_block: U256,
+    /// The cost of the transaction in wei
+    pub cost: U256,
 }
 
 impl From<ArkivEntityCreated> for CreateReceipt {
     fn from(data: ArkivEntityCreated) -> Self {
         Self {
             entity_key: data.entityKey.into(),
-            expiration_block: data.expirationBlock.try_into().unwrap_or_default(),
+            owner_address: data.ownerAddress,
+            expiration_block: data.expirationBlock,
+            cost: data.cost,
         }
     }
 }

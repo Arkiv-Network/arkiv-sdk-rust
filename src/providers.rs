@@ -15,7 +15,6 @@ use alloy::{
 };
 
 use crate::{
-    entity::Entity,
     network::StorageNetwork,
     rpc::{
         ArkivRpcMethod,
@@ -32,9 +31,20 @@ use crate::{
 #[async_trait::async_trait]
 pub trait StorageProvider<S: StorageNetwork>: Provider<S> + Send + Sync {
     /// Filter and retrieve entities matching a query expression.
-    fn query(&self, query: &str, opts: QueryOpts) -> RpcCall<serde_json::Value, Vec<Entity>> {
-        self.client()
-            .request(ArkivRpcMethod::Query, serde_json::json!([query, opts]))
+    ///
+    /// TODO:
+    /// When we make a query, the returned value from the request is still JSON,
+    /// however, this may be less idiomatic for practical use if the end user must
+    /// do non-trivial work to get a decompressed, decoded and deserialized payload.
+    fn query(
+        &self,
+        query_expression: &str,
+        options: QueryOpts,
+    ) -> RpcCall<serde_json::Value, serde_json::Value> {
+        self.client().request(
+            ArkivRpcMethod::Query,
+            serde_json::json!([query_expression, options]),
+        )
     }
 
     /// Returns total number of entities at current block.

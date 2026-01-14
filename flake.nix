@@ -115,6 +115,7 @@
             [
               pre-commit
               nixfmt-rfc-style
+              mitmproxy 
             ]
             ++ lib.optionals (!pkgs.stdenv.isDarwin) [
               nil # currently requires compiling the world

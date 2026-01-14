@@ -19,10 +19,10 @@ pub use util::Tag;
 ///
 /// ```sh
 /// geth --dev \
-///   --http --http.api 'eth,web3,net,debug,golembase,arkiv' \
+///   --http --http.api 'eth,web3,net,debug,arkiv' \
 ///   --http.addr '0.0.0.0' --http.port 8545 \
 ///   --http.corsdomain '*' --http.vhosts '*' \
-///   --ws --ws.api 'eth,web3,net,debug,golembase,arkiv' \
+///   --ws --ws.api 'eth,web3,net,debug,arkiv' \
 ///   --ws.addr '0.0.0.0' --ws.port 8546 \
 ///   --datadir './geth_data' --verbosity 3
 /// ```
@@ -79,6 +79,8 @@ pub struct Arkiv {
     datadir: Option<path::PathBuf>,
     /// The `--verbosity` level which will be used when the `geth` instance is launched.
     verbosity: Option<u8>,
+    /// Whether to reattach the stderr handle from the `geth` node.
+    keep_stderr: bool,
     /// The URL of the tagged release to fetch.
     release_url: Option<String>,
     /// The directory to cache tagged releases once downloaded and checksum verified.
@@ -90,6 +92,9 @@ impl Default for Arkiv {
     fn default() -> Self {
         Self::new()
             .dev()
+            // The networkid is set here, otherwise the networkid will be updated automatically
+            // which may cause a race condition for wallets and providers expecting a non-zero chain id
+            .networkid(Self::ARKIV_NETWORKID)
             .http_addr("0.0.0.0")
             .http_corsdomain("*")
             .http_vhosts("*")
@@ -100,9 +105,13 @@ impl Default for Arkiv {
 }
 impl Arkiv {
     pub const GITHUB_RELEASE_URL: &str =
-        "https://api.github.com/repos/Golem-Base/golembase-op-geth/releases";
+        "https://api.github.com/repos/Arkiv-Network/arkiv-op-geth/releases";
     pub const PROGRAM: &str = "geth";
-    pub const API: &str = "eth,web3,net,debug,golembase,arkiv";
+    /// This networkid is automatically set internally by the node on startup,
+    /// however, we set it explicitly in [`Arkiv::default`] since this may produce
+    /// a race condition for wallets, providers and txs when setting the `chain_id` field.
+    pub const ARKIV_NETWORKID: u64 = 1337;
+    pub const API: &str = "eth,web3,net,debug,arkiv";
     pub const DEFAULT_ADDR: &str = "localhost";
     pub const DEFAULT_HTTP_PORT: u16 = 8545;
     pub const DEFAULT_WS_PORT: u16 = 8546;
@@ -127,12 +136,13 @@ impl Arkiv {
             networkid: None,
             datadir: None,
             verbosity: None,
+            keep_stderr: false,
             release_url: None,
             download_dir: None,
         }
     }
 
-    /// Sets the option to fetch a prebuilt `op-geth` tagged release from <https://github.com/Golem-Base/golembase-op-geth/releases>.
+    /// Sets the option to fetch a prebuilt `op-geth` tagged release from <https://github.com/Arkiv-Network/arkiv-op-geth/releases>.
     /// The release is unpacked at the specified directory provided by [`Arkiv::download_dir`],
     /// otherwise defaulting to `$XDG_CONFIG_HOME/arkiv`, appended by the tag.
     /// The download is not triggered until [`Arkiv::spawn`], and will avoid needless network calls. Successive
@@ -265,6 +275,14 @@ impl Arkiv {
         self
     }
 
+    /// Keep the handle to geth's stderr in order to read from it.
+    ///
+    /// Caution: if the stderr handle isn't used, this can end up blocking.
+    pub const fn keep_stderr(mut self) -> Self {
+        self.keep_stderr = true;
+        self
+    }
+
     /// Consumes the builder and spawns an [`ArkivInstance`].
     ///
     /// By default, it's expected that `geth` is on `$PATH`. The default
@@ -366,7 +384,7 @@ impl Arkiv {
                 .collect::<Vec<_>>()
                 .join(" "),
         );
-        eprintln!("arkiv-node-bindings: executing commmand `{cmdstr}`");
+        eprintln!("arkiv-node-bindings: executing commmand `{cmdstr}`\n");
 
         let mut instance = cmd
             .spawn()
@@ -425,15 +443,20 @@ impl Arkiv {
             }
         }
 
-        // We need to consume the stderr otherwise geth is non-responsive and RPC server results
-        // in connection refused.
-        // See: <https://github.com/alloy-rs/alloy/issues/2091#issuecomment-2676134147>
-        thread::spawn(move || {
-            let mut buf = String::new();
-            loop {
-                let _ = reader.read_line(&mut buf);
-            }
-        });
+        if self.keep_stderr {
+            // re-attach the stderr handle if requested
+            instance.stderr = Some(reader.into_inner());
+        } else {
+            // We need to consume the stderr otherwise geth is non-responsive and RPC server results
+            // in connection refused.
+            // See: <https://github.com/alloy-rs/alloy/issues/2091#issuecomment-2676134147>
+            thread::spawn(move || {
+                let mut buf = String::new();
+                loop {
+                    let _ = reader.read_line(&mut buf);
+                }
+            });
+        }
 
         Ok(instance)
     }
@@ -479,7 +502,7 @@ impl ops::Drop for ArkivInstance {
         }
         if let Err(err) = self.kill() {
             eprintln!(
-                "arkiv-node-bindings: failed to kill arkiv process ({}): {}",
+                "arkiv-node-bindings: failed to kill arkiv process ({}): {}\n",
                 self.id(),
                 err
             );
@@ -527,7 +550,7 @@ mod util {
 
     /// The release tag to fetch from GitHub.
     ///
-    /// A list of tags can be found at <https://github.com/Golem-Base/golembase-op-geth/tags>.
+    /// A list of tags can be found at <https://github.com/Arkiv-Network/arkiv-op-geth/tags>.
     #[derive(Debug, Clone)]
     pub enum Tag {
         /// The latest available tag.
@@ -542,7 +565,7 @@ mod util {
         assets: Vec<Asset>,
     }
     impl Release {
-        const ASSET_NAME: &str = "golembase-op-geth";
+        const ASSET_NAME: &str = "arkiv-op-geth";
 
         /// Checks if the tag exists otherwise downloads the release into a temp directory and verifies the checksum.
         /// Once verified, extracts the tag and moves the contents to `download_dir/tag` and returns the path to the `geth` program.

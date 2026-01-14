@@ -1,6 +1,6 @@
 use std::time;
 
-use alloy_rlp::{RlpDecodable, RlpEncodable};
+use alloy_rlp::{Decodable, Encodable};
 use serde::{Deserialize, Serialize};
 
 /// The blocks-to-live (BTL) for the entity.
@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 /// # Panics
 ///
 /// Panics if the value is `u64::MIN`, i.e. it must be non-zero.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BlocksToLive(u64);
 impl BlocksToLive {
     pub const fn new(btl: u64) -> Self {
@@ -30,6 +30,16 @@ impl BlocksToLive {
             panic!("`BlocksToLive` must be non-zero");
         }
         Self(btl)
+    }
+}
+impl Encodable for BlocksToLive {
+    fn encode(&self, out: &mut dyn bytes::BufMut) {
+        self.0.encode(out)
+    }
+}
+impl Decodable for BlocksToLive {
+    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        u64::decode(buf).map(Self)
     }
 }
 impl Default for BlocksToLive {

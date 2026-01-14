@@ -1,3 +1,4 @@
+use alloy::primitives::Address;
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
@@ -8,11 +9,14 @@ use crate::{EntityKey, contract::ArkivAbi::ArkivEntityDeleted};
 pub struct DeleteReceipt {
     /// The key of the entity that was deleted.
     pub entity_key: EntityKey,
+    /// The owner of the entity that was deleted.
+    pub owner_address: Address,
 }
 impl From<ArkivEntityDeleted> for DeleteReceipt {
     fn from(data: ArkivEntityDeleted) -> Self {
         Self {
             entity_key: data.entityKey.into(),
+            owner_address: data.ownerAddress,
         }
     }
 }

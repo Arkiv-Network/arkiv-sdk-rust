@@ -6,25 +6,17 @@ use std::str::FromStr;
 use alloy::{
     network::TransactionBuilder,
     primitives::{Address, U256},
-    providers::{DynProvider, Provider},
+    providers::{DynProvider, Provider, ProviderBuilder},
+    signers::{Signer, local::PrivateKeySigner},
 };
 use bigdecimal::{BigDecimal, ToPrimitive};
 
-/// Only useful for local development and testing. Funds an account with some eth.
-/// The provider must not have a wallet linked to it, otherwise the provider will
-/// attempt to look for the signing credential of account index 0.
-pub async fn fund_account(
+async fn transfer_funds(
     provider: &DynProvider,
-    address: Address,
+    from: Address,
+    to: Address,
     amount: U256,
 ) -> alloy::rpc::types::TransactionReceipt {
-    let from = provider
-        .get_accounts()
-        .await
-        .unwrap()
-        .get(0)
-        .expect("no accounts available on node")
-        .to_owned();
     let tx = provider
         .transaction_request()
         .with_chain_id(provider.get_chain_id().await.unwrap())
@@ -32,16 +24,72 @@ pub async fn fund_account(
         .max_priority_fee_per_gas(1_000_000_000) // 1 gwei
         .max_fee_per_gas(5_000_000_000) // 5 gwei
         .gas_limit(2_800_000)
-        .to(address)
+        .to(to)
         .value(amount);
 
     provider
         .send_transaction(tx)
         .await
-        .unwrap()
+        .expect("failed to send transaction")
         .get_receipt()
         .await
-        .unwrap()
+        .expect("failed to get receipt")
+}
+
+/// Only useful for local development and testing. Funds an account with some eth.
+/// The provider must not have a wallet linked to it, otherwise the provider will
+/// attempt to look for the signing credential of account index 0.
+pub async fn fund_account(
+    node_provider: &DynProvider,
+    address: Address,
+    amount: U256,
+) -> alloy::rpc::types::TransactionReceipt {
+    let from = node_provider
+        .get_accounts()
+        .await
+        .expect("failed to get accounts")
+        .get(0)
+        .expect("no accounts available on node")
+        .to_owned();
+    transfer_funds(node_provider, from, address, amount).await
+}
+
+/// Generate the minimum required fee history for transactions to succeed. Use this when connecting to a dev node that has
+/// no history to pull gas information from. This can be useful if you are running into `receipts not found` errors.
+pub async fn generate_fee_history(node_provider: &DynProvider, http_endpoint: reqwest::Url) {
+    const MIN_FEE_HISTORY: std::ops::Range<i32> = 0..5;
+    let chain_id = node_provider
+        .get_chain_id()
+        .await
+        .expect("failed to get chain id from node provider");
+    let signer_pair = || async move {
+        let random_signer = || PrivateKeySigner::random().with_chain_id(Some(chain_id));
+        let alice = random_signer();
+        let bob = random_signer();
+        fund_account(
+            node_provider,
+            alice.address(),
+            U256::from_limbs([0, 100, 0, 0]),
+        )
+        .await;
+        (alice, bob)
+    };
+    for _ in MIN_FEE_HISTORY {
+        let (alice, bob) = signer_pair().await;
+        let wallet_provider = ProviderBuilder::new()
+            .with_chain_id(chain_id)
+            .wallet(alice.clone())
+            .connect_http(http_endpoint.clone())
+            .erased();
+
+        transfer_funds(
+            &wallet_provider,
+            alice.address(),
+            bob.address(),
+            U256::from_limbs([50, 0, 0, 0]),
+        )
+        .await;
+    }
 }
 
 /// Converts an ETH amount to wei as a `U256`.

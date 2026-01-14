@@ -1,13 +1,16 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    io::Write,
+    ops::{Deref, DerefMut},
+};
 
+use ::brotli::CompressorWriter;
 use alloy::{
     network::{Ethereum, Network, TransactionBuilder},
     primitives::{Address, TxKind},
-    providers::Provider,
 };
 use alloy_rlp::{Encodable, RlpDecodable, RlpEncodable};
 
-use crate::{StorageProvider, network::StorageNetwork};
+use crate::network::StorageNetwork;
 
 pub mod ops;
 pub mod receipt;
@@ -75,16 +78,26 @@ pub trait StorageTransactionBuilder<S: StorageNetwork>:
         self
     }
 
-    /// Encode the storage payload and set the transaction input and [`alloy::primitives::TxKind`],
+    /// Encode and compress the storage payload and set the transaction input and [`alloy::primitives::TxKind`],
     /// returning the inner [`alloy::network::Network::TransactionRequest`].
     fn into_request(self) -> S::TransactionRequest {
         let payload = self.payload();
-        let mut input = Vec::with_capacity(payload.len());
-        payload.encode(&mut input);
+        let mut encoded = Vec::with_capacity(payload.len());
+        payload.encode(&mut encoded);
+
+        let mut compressed = Vec::with_capacity(encoded.len());
+        let mut writer = CompressorWriter::new(&mut compressed, 4096, 5, 22);
+        writer
+            .write_all(&encoded)
+            .expect("brotli compressor writer failed to write compressed data to the buffer");
+        writer
+            .flush()
+            .expect("failed to flush brotli compressor writer");
+        drop(writer);
 
         self.to_owned()
             .with_kind(TxKind::Call(Self::STORAGE_ADDRESS))
-            .with_input(input)
+            .with_input(compressed)
     }
 }
 

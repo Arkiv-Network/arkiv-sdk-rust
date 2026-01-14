@@ -10,16 +10,16 @@ pub struct ChownReceipt {
     /// The key of the entity that was transferred.
     pub entity_key: EntityKey,
     /// The previous owner of the entity.
-    pub old_owner: Address,
+    pub old_owner_address: Address,
     /// The new owner of the entity.
-    pub new_owner: Address,
+    pub new_owner_address: Address,
 }
 impl From<ArkivEntityOwnerChanged> for ChownReceipt {
     fn from(data: ArkivEntityOwnerChanged) -> Self {
         Self {
             entity_key: data.entityKey.into(),
-            old_owner: data.oldOwner,
-            new_owner: data.newOwner,
+            old_owner_address: data.oldOwnerAddress,
+            new_owner_address: data.newOwnerAddress,
         }
     }
 }

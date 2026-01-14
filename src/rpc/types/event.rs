@@ -1,3 +1,4 @@
+// TODO: Fix this
 #![cfg(feature = "pubsub")]
 use alloy::{primitives::Address, rpc::types::Log, sol_types::SolEventInterface};
 
@@ -120,8 +121,8 @@ impl TryFrom<Log> for ArkivEvent {
             ArkivAbi::ArkivAbiEvents::ArkivEntityOwnerChanged(data) => {
                 Ok(ArkivEvent::EntityTransferred {
                     entity_id: data.entityKey.into(),
-                    old_owner: data.oldOwner,
-                    new_owner: data.newOwner,
+                    old_owner: data.oldOwnerAddress,
+                    new_owner: data.newOwnerAddress,
                     block_number,
                     transaction_hash,
                 })
