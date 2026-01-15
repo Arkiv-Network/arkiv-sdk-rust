@@ -16,14 +16,13 @@ use crate::{
 /// Type representing an update transaction in GolemBase.
 /// Used to update existing entities, including their data, BTL, and annotations.
 #[derive(Debug, Clone, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
-#[rlp(trailing)]
 pub struct Update {
     /// The key of the entity to update.
     entity_key: EntityKey,
-    /// The updated block-to-live (BTL) for the entity.
-    btl: BlocksToLive,
     /// MIME type of the payload.
     content_type: String,
+    /// The updated block-to-live (BTL) for the entity.
+    btl: BlocksToLive,
     /// The updated data for the entity.
     payload: Bytes,
     /// Updated string annotations for the entity.

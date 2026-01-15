@@ -21,7 +21,7 @@ const FAUCET_FUNDS: U256 = U256::from_limbs([0, 100, 0, 0]);
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut arkiv = Arkiv::default().keep_stderr().ephemeral_datadir().spawn()?;
+    let mut arkiv = Arkiv::default().keep_stderr().spawn()?;
 
     eprintln!(
         "keystore-signer: arkiv node: pid: {}, networkid: {}, endpoint: {}\n",
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .erased();
     arkiv_sdk::utils::generate_fee_history(&node_provider, arkiv.endpoint_url()).await;
 
-    eprintln!("keystore-signer: successfully generated fee history");
+    eprintln!("keystore-signer: successfully generated fee history\n");
 
     let keystore_path = path::PathBuf::from(env::var("CARGO_MANIFEST_DIR")?)
         .join("examples")

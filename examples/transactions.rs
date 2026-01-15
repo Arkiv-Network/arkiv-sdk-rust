@@ -21,7 +21,7 @@ const FAUCET_FUNDS: U256 = U256::from_limbs([0, 100, 0, 0]);
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut arkiv = Arkiv::default().keep_stderr().ephemeral_datadir().spawn()?;
+    let mut arkiv = Arkiv::default().keep_stderr().spawn()?;
 
     eprintln!(
         "transaction: arkiv node: pid: {}, networkid: {}, endpoint: {}\n",
@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     std::thread::spawn(|| {
         let mut reader = io::BufReader::new(stderr);
-        let mut file = fs::File::create("keystore_signer.log").unwrap();
+        let mut file = fs::File::create("transactions.log").unwrap();
         let mut line = String::new();
         while reader.read_line(&mut line).unwrap() > 0 {
             file.write_all(line.as_bytes()).unwrap();
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .erased();
     arkiv_sdk::utils::generate_fee_history(&node_provider, arkiv.endpoint_url()).await;
 
-    eprintln!("transaction: successfully generated fee history");
+    eprintln!("transaction: successfully generated fee history\n");
 
     let alice = PrivateKeySigner::random().with_chain_id(Some(arkiv.networkid()));
     let alice_address = alice.address();
@@ -170,6 +170,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pending_tx = bob_provider.send_storage_transaction(tx).await?;
     let receipt = pending_tx.get_receipt().await?;
 
+    eprintln!("transaction: storage_transaction: {receipt:?}\n");
+
     let TransactionReceipt { transferred, .. } = receipt.try_into()?;
 
     let query = bob_provider
@@ -230,7 +232,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .query(&format!(r#"$key = {}"#, entity_key), QueryOpts::default())
         .await?;
 
-    assert!(query["data"].as_array().as_slice().is_empty());
+    assert!(query["data"].as_array().unwrap().is_empty());
 
     Ok(())
 }

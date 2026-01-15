@@ -14,7 +14,6 @@ use crate::{
 
 /// Type representing part of a `Transaction` for creating a new `Entity`.
 #[derive(Debug, Clone, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
-#[rlp(trailing)]
 pub struct Create {
     /// The blocks-to-live (BTL) for the entity.
     btl: BlocksToLive,
