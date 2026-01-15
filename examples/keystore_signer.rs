@@ -28,7 +28,7 @@ impl _Arkiv {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut arkiv = Arkiv::default().keep_stderr().spawn()?;
+    let mut arkiv = Arkiv::default().keep_stderr().ephemeral_datadir().spawn()?;
 
     eprintln!(
         "keystore-signer: arkiv node: pid: {}, networkid: {}, endpoint: {}\n",
@@ -134,8 +134,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         payload.as_bytes(),
         "keystore-signer: payload value does not match"
     );
-
-    std::thread::sleep(Duration::from_secs(5));
 
     Ok(())
 }

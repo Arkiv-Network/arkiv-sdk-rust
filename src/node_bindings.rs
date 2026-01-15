@@ -77,6 +77,8 @@ pub struct Arkiv {
     networkid: Option<u64>,
     /// Data directory for the databases and keystore.
     datadir: Option<path::PathBuf>,
+    /// Clears the datadir on node shutdown.
+    ephemeral_datadir: bool,
     /// The `--verbosity` level which will be used when the `geth` instance is launched.
     verbosity: Option<u8>,
     /// Whether to reattach the stderr handle from the `geth` node.
@@ -100,6 +102,7 @@ impl Default for Arkiv {
             .http_vhosts("*")
             .ws_addr("0.0.0.0")
             .datadir("./geth_data")
+            .ephemeral_datadir()
             .verbosity(3)
     }
 }
@@ -135,6 +138,7 @@ impl Arkiv {
             ws_port: None,
             networkid: None,
             datadir: None,
+            ephemeral_datadir: false,
             verbosity: None,
             keep_stderr: false,
             release_url: None,
@@ -269,6 +273,12 @@ impl Arkiv {
         self
     }
 
+    /// Whether to keep the geth data directory.
+    pub fn ephemeral_datadir(mut self) -> Self {
+        self.ephemeral_datadir = true;
+        self
+    }
+
     /// The `--verbosity` level which will be used when the `geth` instance is launched.
     pub fn verbosity(mut self, verbosity: u8) -> Self {
         self.verbosity = Some(verbosity);
@@ -368,7 +378,7 @@ impl Arkiv {
             ]);
         }
 
-        if let Some(datadir) = self.datadir {
+        if let Some(ref datadir) = self.datadir {
             cmd.args(["--datadir".as_ref(), datadir.as_os_str()]);
         }
 
@@ -395,6 +405,8 @@ impl Arkiv {
                 ws_addr,
                 ws_port,
                 networkid: self.networkid.unwrap_or_default(),
+                datadir: self.datadir,
+                ephemeral_datadir: self.ephemeral_datadir,
             })
             .map_err(|err| {
                 io::Error::new(
@@ -473,6 +485,8 @@ pub struct ArkivInstance {
     ws_addr: String,
     ws_port: u16,
     networkid: u64,
+    datadir: Option<path::PathBuf>,
+    ephemeral_datadir: bool,
 }
 impl ops::Deref for ArkivInstance {
     type Target = process::Child;
@@ -493,6 +507,11 @@ impl ops::Drop for ArkivInstance {
                 self.id(),
                 err
             );
+        }
+        if let Some(ref datadir) = self.datadir
+            && self.ephemeral_datadir
+        {
+            fs::remove_dir_all(datadir).expect("failed to remove datadir");
         }
     }
 }
