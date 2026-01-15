@@ -487,19 +487,6 @@ impl ops::DerefMut for ArkivInstance {
 }
 impl ops::Drop for ArkivInstance {
     fn drop(&mut self) {
-        #[cfg(unix)]
-        {
-            // Attempts SIGTERM before `std::process::Child::kill` which is SIGKILL
-            if let Ok(out) = process::Command::new("kill")
-                .arg("-SIGTERM")
-                .arg(self.id().to_string())
-                .output()
-            {
-                if out.status.success() {
-                    return;
-                }
-            }
-        }
         if let Err(err) = self.kill() {
             eprintln!(
                 "arkiv-node-bindings: failed to kill arkiv process ({}): {}\n",

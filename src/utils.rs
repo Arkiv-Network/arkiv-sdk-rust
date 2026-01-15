@@ -6,7 +6,8 @@ use std::str::FromStr;
 use alloy::{
     network::TransactionBuilder,
     primitives::{Address, U256},
-    providers::{DynProvider, Provider, ProviderBuilder},
+    providers::{DynProvider, PendingTransactionError, Provider, ProviderBuilder},
+    rpc::types::TransactionReceipt,
     signers::{Signer, local::PrivateKeySigner},
 };
 use bigdecimal::{BigDecimal, ToPrimitive};
@@ -16,6 +17,7 @@ async fn transfer_funds(
     from: Address,
     to: Address,
     amount: U256,
+    retries: usize,
 ) -> alloy::rpc::types::TransactionReceipt {
     let tx = provider
         .transaction_request()
@@ -27,13 +29,26 @@ async fn transfer_funds(
         .to(to)
         .value(amount);
 
-    provider
-        .send_transaction(tx)
-        .await
-        .expect("failed to send transaction")
-        .get_receipt()
-        .await
-        .expect("failed to get receipt")
+    let mut res: Result<TransactionReceipt, PendingTransactionError> =
+        Err(PendingTransactionError::FailedToRegister);
+    for attempt in 0..=retries {
+        let pending_tx = provider
+            .send_transaction(tx.clone())
+            .await
+            .expect("failed to send transaction");
+        match pending_tx.get_receipt().await {
+            Ok(receipt) => {
+                res = Ok(receipt);
+                break;
+            }
+            Err(err) if attempt == retries => {
+                res = Err(err);
+                break;
+            }
+            Err(_) => std::thread::sleep(std::time::Duration::from_secs(1)),
+        }
+    }
+    res.expect("failed to get receipt")
 }
 
 /// Only useful for local development and testing. Funds an account with some eth.
@@ -51,7 +66,7 @@ pub async fn fund_account(
         .get(0)
         .expect("no accounts available on node")
         .to_owned();
-    transfer_funds(node_provider, from, address, amount).await
+    transfer_funds(node_provider, from, address, amount, 5).await
 }
 
 /// Generate the minimum required fee history for transactions to succeed. Use this when connecting to a dev node that has
@@ -87,6 +102,7 @@ pub async fn generate_fee_history(node_provider: &DynProvider, http_endpoint: re
             alice.address(),
             bob.address(),
             U256::from_limbs([50, 0, 0, 0]),
+            5,
         )
         .await;
     }

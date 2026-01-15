@@ -13,9 +13,22 @@ use arkiv_sdk::{
 
 const FAUCET_FUNDS: U256 = U256::from_limbs([0, 100, 0, 0]);
 
+struct _Arkiv;
+impl _Arkiv {
+    fn id(&self) -> u32 {
+        0
+    }
+    fn networkid(&self) -> u64 {
+        1337
+    }
+    fn endpoint_url(&self) -> reqwest::Url {
+        "http://0.0.0.0:8545".parse().unwrap()
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let arkiv = Arkiv::default().spawn()?;
+    let mut arkiv = Arkiv::default().keep_stderr().spawn()?;
 
     eprintln!(
         "keystore-signer: arkiv node: pid: {}, networkid: {}, endpoint: {}\n",
@@ -24,11 +37,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         arkiv.endpoint_url()
     );
 
+    let stderr = arkiv.stderr.take().unwrap();
+
+    std::thread::spawn(|| {
+        use std::io::{BufRead, Write};
+
+        let mut reader = std::io::BufReader::new(stderr);
+        let mut file = std::fs::File::create("arkiv.log").unwrap();
+
+        let mut line = String::new();
+        while reader.read_line(&mut line).unwrap() > 0 {
+            file.write_all(line.as_bytes()).unwrap();
+            line.clear();
+        }
+    });
+
     let node_provider = ProviderBuilder::new()
         .with_chain_id(arkiv.networkid())
         .connect_http(arkiv.endpoint_url())
         .erased();
     arkiv_sdk::utils::generate_fee_history(&node_provider, arkiv.endpoint_url()).await;
+
+    eprintln!("keystore-signer: successfully generated fee history");
 
     let signer = PrivateKeySigner::random().with_chain_id(Some(arkiv.networkid()));
     let address = signer.address();
@@ -104,6 +134,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         payload.as_bytes(),
         "keystore-signer: payload value does not match"
     );
+
+    std::thread::sleep(Duration::from_secs(5));
 
     Ok(())
 }
