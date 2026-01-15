@@ -108,6 +108,14 @@ pub trait StorageProvider<S: StorageNetwork>: Provider<S> + Send + Sync {
             .await
     }
 
+    async fn transfer_entities(
+        &self,
+        transfers: Vec<<<S::StorageTransactionRequest as StorageTransactionBuilder<S>>::Payload as PayloadBuilder<S>>::Chown>,
+    ) -> TransportResult<PendingTransactionBuilder<S>> {
+        self.send_storage_transaction(self.storage_transaction().transfer_entities(transfers))
+            .await
+    }
+
     /// A convenience method for subscribing to a stream of events from the [`StorageNetwork`]'s storage contract.
     /// Provides a closure over a [`alloy::rpc::types::Filter`] with the [`crate::tx::StorageTransactionRequest::STORAGE_ADDRESS`] pre-populated
     /// and attempts to convert the [`alloy::sol`] contract types into [`StorageNetwork::Event`].

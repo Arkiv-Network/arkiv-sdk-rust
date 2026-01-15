@@ -1,6 +1,7 @@
 //! Spawn an ephemeral arkiv node, add faucet funds to an account and send storage transactions.
 
-use std::{env, path, time};
+use std::io::{BufRead, Write};
+use std::{env, fs, io, path, time};
 
 use alloy::{
     hex::ToHexExt,
@@ -32,11 +33,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stderr = arkiv.stderr.take().expect("failed to get stderr handle");
 
     std::thread::spawn(|| {
-        use std::io::{BufRead, Write};
-
-        let mut reader = std::io::BufReader::new(stderr);
-        let mut file = std::fs::File::create("keystore_signer.log").unwrap();
-
+        let mut reader = io::BufReader::new(stderr);
+        let mut file = fs::File::create("keystore_signer.log").unwrap();
         let mut line = String::new();
         while reader.read_line(&mut line).unwrap() > 0 {
             file.write_all(line.as_bytes()).unwrap();
