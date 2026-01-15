@@ -13,19 +13,6 @@ use arkiv_sdk::{
 
 const FAUCET_FUNDS: U256 = U256::from_limbs([0, 100, 0, 0]);
 
-struct _Arkiv;
-impl _Arkiv {
-    fn id(&self) -> u32 {
-        0
-    }
-    fn networkid(&self) -> u64 {
-        1337
-    }
-    fn endpoint_url(&self) -> reqwest::Url {
-        "http://0.0.0.0:8545".parse().unwrap()
-    }
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut arkiv = Arkiv::default().keep_stderr().ephemeral_datadir().spawn()?;
