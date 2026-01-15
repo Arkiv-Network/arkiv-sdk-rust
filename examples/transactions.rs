@@ -3,16 +3,16 @@
 use std::io::{BufRead, Write};
 use std::{fs, io, time};
 
+use alloy::signers::local::LocalSigner;
 use alloy::{
     hex::{FromHex, ToHexExt},
     primitives::{B256, U256},
     signers::Signer,
 };
-use arkiv_sdk::ops::Delete;
 use arkiv_sdk::{
-    PrivateKeySigner, Provider, ProviderBuilder, StorageProvider,
+    Provider, ProviderBuilder, StorageProvider,
     node_bindings::Arkiv,
-    ops::{Chown, Create, Update},
+    ops::{Chown, Create, Delete, Update},
     rpc::types::{IncludeData, QueryOpts},
     tx::{StorageTransactionBuilder, TransactionReceipt},
 };
@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     eprintln!("transaction: successfully generated fee history\n");
 
-    let alice = PrivateKeySigner::random().with_chain_id(Some(arkiv.networkid()));
+    let alice = LocalSigner::random().with_chain_id(Some(arkiv.networkid()));
     let alice_address = alice.address();
     let alice_provider = ProviderBuilder::new()
         .with_chain_id(arkiv.networkid())
@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .erased();
     arkiv_sdk::utils::fund_account(&node_provider, alice_address, FAUCET_FUNDS).await;
 
-    let bob = PrivateKeySigner::random().with_chain_id(Some(arkiv.networkid()));
+    let bob = LocalSigner::random().with_chain_id(Some(arkiv.networkid()));
     let bob_address = bob.address();
     let bob_provider = ProviderBuilder::new()
         .with_chain_id(arkiv.networkid())
@@ -82,7 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     let receipt = pending_create.get_receipt().await?;
 
-    eprintln!("transaction: send_storage_transaction: {receipt:?}\n");
+    eprintln!("transaction: create_entities: {receipt:?}\n");
 
     let TransactionReceipt { created, .. } = receipt.try_into()?;
     let entity_key = created[0].entity_key;

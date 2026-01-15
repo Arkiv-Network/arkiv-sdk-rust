@@ -54,6 +54,11 @@ impl From<u64> for BlocksToLive {
         Self::new(value)
     }
 }
+impl From<BlocksToLive> for u64 {
+    fn from(value: BlocksToLive) -> Self {
+        value.0
+    }
+}
 impl From<time::Duration> for BlocksToLive {
     fn from(value: time::Duration) -> Self {
         Self::new(value.as_secs() / 2)
@@ -62,7 +67,7 @@ impl From<time::Duration> for BlocksToLive {
 
 #[test]
 fn btl_const_compiles() {
-    const THIRTY_SECONDS: BlocksToLive = BlocksToLive::new(15u64);
+    const _THIRTY_SECONDS: BlocksToLive = BlocksToLive::new(15u64);
 }
 
 #[test]

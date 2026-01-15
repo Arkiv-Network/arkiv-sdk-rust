@@ -1,7 +1,7 @@
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use crate::entity::EntityKey;
+use crate::{BlocksToLive, entity::EntityKey};
 
 /// Type representing an extend operation as part of a `Transaction`.
 /// Used to extend the [`crate::entity::BlocksToLive`] of an entity.
@@ -15,11 +15,12 @@ pub struct Extend {
 
 impl Extend {
     /// Construct a new instance of an extend operation as part of a `Transaction`
-    /// for some existing [`crate::entity::Entity`].
-    pub fn new<K: Into<EntityKey>>(entity_key: K, number_of_blocks: u64) -> Self {
+    /// for some existing [`crate::entity::Entity`] to extend the entity's [`crate::BlocksToLive`].
+    /// The entity's resulting BTL will be the sum of the two [`crate::BlocksToLive`].
+    pub fn new<K: Into<EntityKey>, B: Into<BlocksToLive>>(entity_key: K, btl: B) -> Self {
         Self {
             entity_key: entity_key.into(),
-            number_of_blocks,
+            number_of_blocks: btl.into().into(),
         }
     }
 

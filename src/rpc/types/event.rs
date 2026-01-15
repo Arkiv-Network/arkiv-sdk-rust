@@ -31,7 +31,7 @@ pub enum ArkivEvent {
         transaction_hash: EntityKey,
     },
     /// Entity was removed.
-    EntityRemoved {
+    EntityDeleted {
         /// The ID of the removed entity
         entity_id: EntityKey,
         /// The block number where the event occurred
@@ -104,7 +104,7 @@ impl TryFrom<Log> for ArkivEvent {
                 block_number,
                 transaction_hash,
             }),
-            ArkivAbi::ArkivAbiEvents::ArkivEntityDeleted(data) => Ok(ArkivEvent::EntityRemoved {
+            ArkivAbi::ArkivAbiEvents::ArkivEntityDeleted(data) => Ok(ArkivEvent::EntityDeleted {
                 entity_id: data.entityKey.into(),
                 block_number,
                 transaction_hash,
