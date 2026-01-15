@@ -1,16 +1,21 @@
 //! Spawn an ephemeral arkiv node, add faucet funds to an account and send storage transactions.
 
-use std::time::Duration;
+use std::{env, path, time};
 
-use alloy::{hex::ToHexExt, primitives::U256, signers::Signer};
+use alloy::{
+    hex::ToHexExt,
+    primitives::U256,
+    signers::{Signer, local::LocalSigner},
+};
 use arkiv_sdk::{
-    PrivateKeySigner, Provider, ProviderBuilder, StorageProvider,
+    Provider, ProviderBuilder, StorageProvider,
     node_bindings::Arkiv,
     ops::Create,
     rpc::types::{IncludeData, QueryOpts},
     tx::{StorageTransactionBuilder, TransactionReceipt},
 };
 
+const KEYSTORE_PASSWORD: &str = "test";
 const FAUCET_FUNDS: U256 = U256::from_limbs([0, 100, 0, 0]);
 
 #[tokio::main]
@@ -24,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         arkiv.endpoint_url()
     );
 
-    let stderr = arkiv.stderr.take().unwrap();
+    let stderr = arkiv.stderr.take().expect("failed to get stderr handle");
 
     std::thread::spawn(|| {
         use std::io::{BufRead, Write};
@@ -47,7 +52,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     eprintln!("keystore-signer: successfully generated fee history");
 
-    let signer = PrivateKeySigner::random().with_chain_id(Some(arkiv.networkid()));
+    let keystore_path = path::PathBuf::from(env::var("CARGO_MANIFEST_DIR")?)
+        .join("examples")
+        .join("keystore")
+        .join("alice.json");
+    let signer = LocalSigner::decrypt_keystore(keystore_path, KEYSTORE_PASSWORD)?
+        .with_chain_id(Some(arkiv.networkid()));
     let address = signer.address();
     let wallet_provider = ProviderBuilder::new()
         .with_chain_id(arkiv.networkid())
@@ -69,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let payload = "Hello, world!";
     let tx = wallet_provider.storage_transaction().create_entities(vec![
         Create::new()
-            .btl(Duration::from_secs(10))
+            .btl(time::Duration::from_secs(10))
             .payload(payload)
             .content_type("plain/text")
             .build()?,
@@ -84,11 +94,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("keystore-signer: send_storage_transaction: {receipt:?}\n");
 
     let TransactionReceipt { created, .. } = receipt.try_into()?;
-    let entity_key = created[0].entity_key;
 
     let query = wallet_provider
         .query(
-            &format!(r#"$key = {}"#, entity_key),
+            &format!(r#"$key = {}"#, created[0].entity_key),
             QueryOpts {
                 include_data: Some(IncludeData {
                     owner: true,

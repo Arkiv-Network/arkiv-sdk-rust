@@ -1,7 +1,7 @@
 #![cfg(feature = "node-bindings")]
 //! Used for running a `geth` node with `arkiv` capabilities locally
 //! for development and testing purposes. Constructor semantics work similarly to
-//! `alloy::node_bindings::Anvil` and `alloy::node_bindings::AnvilInstance`.
+//! `alloy::node_bindings::Anvil` and `alloy::node_bindings::Geth`.
 
 use std::{
     fs,
@@ -19,6 +19,7 @@ pub use util::Tag;
 ///
 /// ```sh
 /// geth --dev \
+///   --networkid 1337 \
 ///   --http --http.api 'eth,web3,net,debug,arkiv' \
 ///   --http.addr '0.0.0.0' --http.port 8545 \
 ///   --http.corsdomain '*' --http.vhosts '*' \
@@ -91,6 +92,18 @@ pub struct Arkiv {
     download_dir: Option<path::PathBuf>,
 }
 impl Default for Arkiv {
+    /// Constructs an [`Arkiv`] builder with an ephemeral datadir and options that produce the following command:
+    ///
+    /// ```sh
+    /// geth --dev \
+    ///   --networkid 1337 \
+    ///   --http --http.api 'eth,web3,net,debug,arkiv' \
+    ///   --http.addr '0.0.0.0' --http.port 8545 \
+    ///   --http.corsdomain '*' --http.vhosts '*' \
+    ///   --ws --ws.api 'eth,web3,net,debug,arkiv' \
+    ///   --ws.addr '0.0.0.0' --ws.port 8546 \
+    ///   --datadir './geth_data' --verbosity 3
+    /// ```
     fn default() -> Self {
         Self::new()
             .dev()
