@@ -44,6 +44,8 @@ pub struct Arkiv {
     program: Option<path::PathBuf>,
     /// Whether to launch the `geth` instance in `--dev` mode.
     dev: bool,
+    /// Block period to use in developer mode (0 = mine only if transaction pending).
+    dev_period: Option<time::Duration>,
     /// Whether to pass the `--http` flag to the `geth` instance.
     http: bool,
     /// The `--http.api` which will be used when the `geth` instance is launched.
@@ -139,6 +141,7 @@ impl Arkiv {
         Self {
             program: None,
             dev: false,
+            dev_period: None,
             http: false,
             http_api: None,
             http_addr: None,
@@ -202,6 +205,12 @@ impl Arkiv {
     /// Whether to launch the `geth` instance in `--dev` mode.
     pub fn dev(mut self) -> Self {
         self.dev = true;
+        self
+    }
+
+    /// Block period to use in developer mode (0 = mine only if transaction pending)
+    pub fn dev_period(mut self, period: time::Duration) -> Self {
+        self.dev_period = Some(period);
         self
     }
 
@@ -344,6 +353,9 @@ impl Arkiv {
 
         if self.dev {
             cmd.arg("--dev");
+            if let Some(period) = self.dev_period {
+                cmd.args(["--dev.period", period.as_secs().to_string().as_str()]);
+            }
         }
         if let Some(networkid) = self.networkid {
             cmd.args(["--networkid", networkid.to_string().as_str()]);
