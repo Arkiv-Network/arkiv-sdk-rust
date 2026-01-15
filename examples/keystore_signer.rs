@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         use std::io::{BufRead, Write};
 
         let mut reader = std::io::BufReader::new(stderr);
-        let mut file = std::fs::File::create("arkiv.log").unwrap();
+        let mut file = std::fs::File::create("keystore_signer.log").unwrap();
 
         let mut line = String::new();
         while reader.read_line(&mut line).unwrap() > 0 {
