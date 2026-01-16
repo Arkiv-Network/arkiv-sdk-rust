@@ -177,9 +177,9 @@ impl Arkiv {
     /// # Errors
     ///
     /// - If the download directory does not exist, or if the final component of
-    /// the path is not a directory. See [`fs::canonicalize`] for further details.
+    ///   the path is not a directory. See [`fs::canonicalize`] for further details.
     /// - If the home config directory does not exist, or could not be created. See
-    /// [`dirs::config_dir`] and [`fs::create_dir_all`] for further details.
+    ///   [`dirs::config_dir`] and [`fs::create_dir_all`] for further details.
     pub fn fetch_tag(mut self, tag: Tag) -> Self {
         self.release_url = Some(match tag {
             Tag::Latest => format!("{}/latest", Self::GITHUB_RELEASE_URL),
@@ -601,7 +601,7 @@ mod util {
         /// Checks if the tag exists otherwise downloads the release into a temp directory and verifies the checksum.
         /// Once verified, extracts the tag and moves the contents to `download_dir/tag` and returns the path to the `geth` program.
         pub(in crate::node_bindings) fn download<U: reqwest::IntoUrl>(
-            download_dir: &path::PathBuf,
+            download_dir: &path::Path,
             url: U,
         ) -> io::Result<path::PathBuf> {
             let client = reqwest::blocking::Client::new();

@@ -30,6 +30,7 @@ impl Create {
     /// Produces a builder to populate fields for a `Create` operation, as part
     /// of a `Transaction`. Requires `btl`, `content_type` and `payload` for
     /// `CreateBuilder::build` to succeed.
+    #[allow(clippy::new_ret_no_self)]
     pub fn new<B, C, P>() -> CreateBuilder<B, C, P>
     where
         B: Into<BlocksToLive>,

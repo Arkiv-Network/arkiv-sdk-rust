@@ -31,6 +31,10 @@ pub struct Update {
     numeric_attributes: Vec<NumericAttribute>,
 }
 impl Update {
+    /// Produces a builder to populate fields for an `Update` operation, as part
+    /// of a `Transaction`. Requires `entity_key`, `btl`, `content_type` and `payload` for
+    /// `UpdateBuilder::build` to succeed.
+    #[allow(clippy::new_ret_no_self)]
     pub fn new<K, B, C, P>() -> UpdateBuilder<K, B, C, P>
     where
         K: Into<EntityKey>,

@@ -62,8 +62,7 @@ pub async fn fund_account(
     let from = node_provider
         .get_accounts()
         .await
-        .expect("failed to get accounts")
-        .get(0)
+        .expect("failed to get accounts").first()
         .expect("no accounts available on node")
         .to_owned();
     transfer_funds(node_provider, from, address, amount, 5).await
