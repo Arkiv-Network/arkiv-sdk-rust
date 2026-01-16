@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["ops","receipt"],"struct":["StoragePayload","StorageTransactionRequest"],"trait":["PayloadBuilder","StorageTransactionBuilder"]};

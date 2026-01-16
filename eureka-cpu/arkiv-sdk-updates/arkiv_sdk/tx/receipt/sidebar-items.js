@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["chown","create","delete","extend","update"],"struct":["TransactionReceipt"]};
