@@ -103,7 +103,7 @@ pub trait StorageTransactionBuilder<S: StorageNetwork>:
 
 /// The underlying network transaction to be sent and an encodable payload
 /// containing storage operations. This type implements [`StorageTransactionBuilder`]
-/// and is intended to be used just as [`alloy::network::TransactionRequest`].
+/// and is intended to be used just as [`alloy::network::Network::TransactionRequest`].
 pub struct StorageTransactionRequest<S: StorageNetwork> {
     payload: <S::StorageTransactionRequest as StorageTransactionBuilder<S>>::Payload,
     request: <S as Network>::TransactionRequest,

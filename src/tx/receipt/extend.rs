@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{EntityKey, contract::ArkivAbi::ArkivEntityBTLExtended};
 
-/// A receipt returned by the network from a [`crate::tx::Transaction`] containing an [`crate::tx::ops::Extend`] operation.
+/// A receipt returned by the network from a [`crate::network::StorageNetwork::StorageTransactionRequest`]
+/// containing an [`crate::tx::ops::Extend`] operation in its payload.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
 pub struct ExtendReceipt {
     /// The key of the entity.

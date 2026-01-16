@@ -96,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let query = alice_provider
         .query(
-            &format!(r#"$key = {}"#, entity_key),
+            &format!(r#"$key = {entity_key}"#),
             QueryOpts {
                 include_data: Some(IncludeData {
                     owner: true,
@@ -117,10 +117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let query = bob_provider
         .query(
-            &format!(
-                r#"$owner = {} && $creator = {}"#,
-                bob_address, alice_address
-            ),
+            &format!(r#"$owner = {bob_address} && $creator = {alice_address}"#),
             QueryOpts {
                 include_data: Some(IncludeData {
                     key: true,
@@ -197,10 +194,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let query = alice_provider
         .query(
-            &format!(
-                r#"$owner = {} && $creator = {}"#,
-                alice_address, alice_address
-            ),
+            &format!(r#"$owner = {alice_address} && $creator = {alice_address}"#),
             QueryOpts::default(),
         )
         .await?;
@@ -229,7 +223,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("transaction: delete_entities: {receipt:?}\n");
 
     let query = alice_provider
-        .query(&format!(r#"$key = {}"#, entity_key), QueryOpts::default())
+        .query(&format!(r#"$key = {entity_key}"#), QueryOpts::default())
         .await?;
 
     assert!(query["data"].as_array().unwrap().is_empty());

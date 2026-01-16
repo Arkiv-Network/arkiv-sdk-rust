@@ -118,7 +118,7 @@ pub trait StorageProvider<S: StorageNetwork>: Provider<S> + Send + Sync {
 
     /// A convenience method for subscribing to a stream of events from the [`StorageNetwork`]'s storage contract.
     /// Provides a closure over a [`alloy::rpc::types::Filter`] with the [`crate::tx::StorageTransactionRequest::STORAGE_ADDRESS`] pre-populated
-    /// and attempts to convert the [`alloy::sol`] contract types into [`StorageNetwork::Event`].
+    /// and attempts to convert the [`alloy::sol`] contract types into [`crate::network::StorageNetwork::StorageEvent`].
     #[cfg(feature = "pubsub")]
     async fn subscribe_storage_events(
         &self,

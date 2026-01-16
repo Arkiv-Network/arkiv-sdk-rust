@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{BlocksToLive, entity::EntityKey};
 
-/// Type representing an extend operation as part of a `Transaction`.
+/// Type representing an extend operation as part of a [`crate::network::StorageNetwork::StorageTransactionRequest`].
 /// Used to extend the [`crate::entity::BlocksToLive`] of an entity.
 #[derive(Debug, Clone, Copy, RlpEncodable, RlpDecodable, Serialize, Deserialize)]
 pub struct Extend {
@@ -14,7 +14,7 @@ pub struct Extend {
 }
 
 impl Extend {
-    /// Construct a new instance of an extend operation as part of a `Transaction`
+    /// Construct a new instance of an extend operation as part of a [`crate::network::StorageNetwork::StorageTransactionRequest`]
     /// for some existing [`crate::entity::Entity`] to extend the entity's [`crate::BlocksToLive`].
     /// The entity's resulting BTL will be the sum of the two [`crate::BlocksToLive`].
     pub fn new<K: Into<EntityKey>, B: Into<BlocksToLive>>(entity_key: K, btl: B) -> Self {

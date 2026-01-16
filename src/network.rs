@@ -8,7 +8,7 @@ use alloy::network::{Ethereum, Network};
 pub trait StorageNetwork: Network {
     /// The transaction type of the [`StorageNetwork`] that corresponds to its storage contract.
     ///
-    /// See [`alloy::network::TransactionRequest`], [`alloy::sol_types::sol`] and [`crate::tx::StorageTransactionBuilder::STORAGE_ADDRESS`].
+    /// See [`alloy::network::Network::TransactionRequest`], [`alloy::sol_types::sol`] and [`crate::tx::StorageTransactionBuilder::STORAGE_ADDRESS`].
     type StorageTransactionRequest: crate::tx::StorageTransactionBuilder<Self> + Send;
 
     /// An event type emitted from a storage contract that can be parsed from [`alloy::rpc::types::Log`]s.
