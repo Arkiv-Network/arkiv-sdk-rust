@@ -4,7 +4,7 @@
   inputs = {
     nixpkgs.url = "https://channels.nixos.org/nixos-unstable/nixexprs.tar.xz";
 
-    crane.url = "github:ipetkov/crane";
+    flake-utils.url = "github:numtide/flake-utils";
 
     fenix = {
       url = "github:nix-community/fenix";
@@ -12,16 +12,19 @@
       inputs.rust-analyzer-src.follows = "";
     };
 
-    flake-utils.url = "github:numtide/flake-utils";
+    crane.url = "github:ipetkov/crane";
+
+    arkiv-op-geth.url = "github:arkiv-network/arkiv-op-geth";
   };
 
   outputs =
     {
       self,
       nixpkgs,
-      crane,
-      fenix,
       flake-utils,
+      fenix,
+      crane,
+      arkiv-op-geth,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -39,13 +42,27 @@
         src =
           let
             markdownFilter = path: _type: builtins.match ".*md$" path != null;
-            markdownOrCargo = path: type: (markdownFilter path type) || (craneLib.filterCargoSources path type);
+            jsonFilter = path: _type: builtins.match ".*json" path != null;
+            sourceFilter = path: type:
+              (markdownFilter path type)
+              || (jsonFilter path type)
+              || (craneLib.filterCargoSources path type)
+              ;
           in
           lib.cleanSourceWith {
             src = ./.;
-            filter = markdownOrCargo;
+            filter = sourceFilter;
             name = "source";
           };
+
+        # Run a cargo example from the examples directory.
+        runExample = { cargoArtifacts, example, ... }@args:
+          craneLib.mkCargoDerivation (args // {
+            inherit cargoArtifacts;
+            pnameSuffix = "-${example}";
+            nativeBuildInputs = (args.nativeBuildInputs or []) ++ [ arkiv-op-geth.packages.${system}.default ];
+            buildPhaseCargoCommand = "cargo run --example ${example}";
+          });
 
         commonArgs = {
           inherit src;
@@ -101,6 +118,31 @@
               env.RUSTDOCFLAGS = "--deny warnings";
             }
           );
+
+          cargo-nextest = craneLib.cargoNextest (
+            commonArgs
+            // {
+              inherit cargoArtifacts;
+              partitions = 1;
+              partitionType = "count";
+              cargoNextestPartitionsExtraArgs = "--no-tests=pass";
+            }
+          );
+
+          transactions-example = runExample (commonArgs // {
+            inherit cargoArtifacts;
+            example = "transactions";
+          });
+
+          keystore-signer-example = runExample (commonArgs // {
+            inherit cargoArtifacts;
+            example = "keystore_signer";
+          });
+
+          subscriptions-example = runExample (commonArgs // {
+            inherit cargoArtifacts;
+            example = "subscriptions";
+          });
         };
 
         packages = {
@@ -115,6 +157,7 @@
             [
               pre-commit
               nixfmt-rfc-style
+              mitmproxy
             ]
             ++ lib.optionals (!pkgs.stdenv.isDarwin) [
               nil # currently requires compiling the world

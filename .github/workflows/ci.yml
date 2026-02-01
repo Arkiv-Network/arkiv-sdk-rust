@@ -21,13 +21,8 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v31
 
-      - name: Setup Go and Golem Base
-        uses: ./.github/workflows/setup
-
-      # TODO: This could probably just be a derivation
-      - name: Run Rust demo example
-        run: printf "password" | nix develop --command cargo run
-        working-directory: ./demo
+      - name: Run examples
+        run: nix build .#checks.x86_64-linux.{transactions-example,keystore-signer-example,subscriptions-example} --keep-going -L
 
   run-tests-and-docs:
     runs-on: ubuntu-latest
@@ -35,14 +30,11 @@ jobs:
       - name: Check out the SDK repo
         uses: actions/checkout@v4
 
-      - name: Setup Go, Rust and Golem Base
-        uses: ./.github/workflows/setup
-
       - name: Install Nix
         uses: cachix/install-nix-action@v31
 
       - name: Run tests
-        run: nix flake check --keep-going -L
+        run: nix build .#checks.x86_64-linux.{cargo-clippy,cargo-fmt,taplo-fmt,cargo-nextest} --keep-going -L
 
       - name: Build docs
         run: nix build .#checks.x86_64-linux.cargo-doc
@@ -62,4 +54,4 @@ jobs:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             Preview the generated documentation for this PR at:
-            https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.head_ref }}/golem_base_sdk/
+            https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.head_ref }}/arkiv_sdk/
