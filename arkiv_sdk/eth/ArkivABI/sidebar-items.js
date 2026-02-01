@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ArkivABIEvents"],"struct":["GolemBaseStorageEntityBTLExtended","GolemBaseStorageEntityCreated","GolemBaseStorageEntityDeleted","GolemBaseStorageEntityUpdated"]};

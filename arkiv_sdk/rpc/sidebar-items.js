@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Error"],"struct":["EntityMetaData","SearchResult"]};
+window.SIDEBAR_ITEMS = {"enum":["ArkivRpcMethod"],"mod":["types"]};

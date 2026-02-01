@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["attribute","btl","content_type"],"struct":["Entity"],"type":["EntityKey"]};
